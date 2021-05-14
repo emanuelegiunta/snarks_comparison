@@ -56,10 +56,6 @@ def print_verbose_message(string):
 	if VERY_VERBOSE_FLAG and VERBOSE_FLAG:
 		print(string)
 
-def print_debug(string):
-	if DEBUG:
-		print(string)
-
 def print_separator(length = 36, indentation_length = 2):
 	# print a line to separate data
 	print("\n" + " "*indentation_length + "="*length + "\n")
@@ -77,11 +73,11 @@ def str_underline(s):
 	return "\033[4m{:s}\033[0m".format(s)
 
 def print_help():
-	out = str_bold("Parameter optimiser for Aurora [EC:BCRSVW19] and Ligero [CCS:AHIV17]\n")
-	out += str_bold("SYNOPSIS:") + "{}\n".format(sys.argv[0])
-	out += "\t[-l] [-a] [-sp {arg}] [-ld {arg}] [-hd {arg}]\n"
+	out = str_bold("Parameter optimiser for Aurora [EC:BCRSVW19] and Ligero [CCS:AHIV17]\n\n")
+	out += str_bold("SYNOPSIS: ") + "{}\n".format(sys.argv[0])
+	out += "\t[-l] [-tl] [-a] [-ta] [-sp {arg}] [-ld {arg}] [-hd {arg}]\n"
 	out += "\t[-h] [-p] [-r {args}] [-fd {arg}] [-f {arg}]\n"
-	out += "\t[-D {arg}] [-v] [-vv] [-d] [-help]\n"
+	out += "\t[-D {arg}] [-v] [-vv] [-help]\n"
 	out += "\n"
 	out += str_bold("COMMAND LINE DESCRIPTION:\n")
 	out += "\n"
@@ -138,10 +134,6 @@ def print_help():
 
 	out += "  {:s}:\n".format(str_bold("-vv, --very_verbose"))
 	out += " Print more informations on screen\n"
-	out += "\n"
-
-	out += "  {:s}:\n".format(str_bold("-d, --debug"))
-	out += " Run in debug mode (will be removed in the future)\n"
 	out += "\n"
 
 	out += "  {:s}:\n".format(str_bold("-help"))
@@ -230,11 +222,11 @@ def com_BCS(hash_size, vec_alphabet_size, rounds, vec_oracle_length, vec_query, 
 	if type(vec_alphabet_size) != list:
 		vec_alphabet_size = [vec_alphabet_size]
 
-	if len(vec_query) != len(vec_oracle_length):
-		raise CompatibilityError("queries and proof lengh of incompatible length")
+	assert len(vec_query) == len(vec_oracle_length), \
+		"BSC, length of queries ({:d}) and oracles ({:d}) differ".format(len(vec_query), len(vec_oracle_length))
 
-	if len(vec_query) != len(vec_alphabet_size):
-		raise CompatibilityError("queries and vec_alphabet_size of incompatible length")
+	assert len(vec_query) == len(vec_alphabet_size), \
+		"BSC, length of queries ({:d}) and alphabet ({:d}) differ".format(len(vec_query), len(vec_alphabet_size))
 
 	if not estimate:
 		#compute the number of mkt hashes required from Monte-Carlo evaluation
@@ -318,36 +310,18 @@ class LIGERO_parameters:
 			self.LGR_MIN_L = 1/6.0
 			self.LGR_MAX_L = 2.5
 
-	def check_empty_entries(self):
-		# TODO - adjust this to the new variables
-		if self.field_dim == None:
-			return False
+	def check_empty_entries(self, var = [], exclude = False):
+		# check that all the variables beside those whose name
+		#  is in the list "all_but" are not set to None
+		# 
+		# It returns the name of the empty variable. If no empty
+		#  variable is found, it returns None
 
-		if self.domain_dim == None:
-			return False
-
-		if self.domain_size == None:
-			return False
-
-		if self.degree == None:
-			return False
-
-		if self.proximity_parameter == None:
-			return False
-
-		if self.queries == None:
-			return False
-
-		if self.factor_l == None:
-			return False
-
-		if self.factor_m1 == None or self.factor_m2 == None:
-			return False
-
-		if self.interactive_repetitions == None:
-			return False
-
-		return True
+		for key, value in vars(self).items():
+			if value == None and (key in var or exclude) and not (key in var and exclude):
+				return key
+		else:
+			return None
 
 	def __str__(self):
 		out = "\n- - - - LGR pramaters - - - -\n"
@@ -380,6 +354,14 @@ class LIGERO_parameters:
 		return out
 
 	def find_queries(self):
+		# Returns the number of queries required to have a query soundness error smaller
+		#  that 2^{-qsp}
+
+		# debug - check that all the required variables are non empty
+		assert self.check_empty_entries(var = ("domain_size", "proximity_parameter", "degree", \
+			"query_soundness_error")) == None, "LIGERO, empty required variable"
+		# - - - - - - - - - - debug - - - - - - - - - - #
+
 		# we find t through a binary search
 		t_min = 0
 		t_max = 1
@@ -395,7 +377,6 @@ class LIGERO_parameters:
 		# we rule out the case in which soundness cannot be obtained even
 		#  if all points of the inputs are queried
 		if f(n) >= err:
-			# print_debug("query bound ecceded domain_size")
 			return float('inf')
 
 		#first we look for an upper bound
@@ -419,10 +400,12 @@ class LIGERO_parameters:
 		# IDEA - significant efficiency improvement (expected 1.5x) could come
 		#  using 3 different repetition parameters sigma_LDT, sigma_LIN, sigma_ROW.
 		#  (TODO)
-
-		#if self.domain_size == None or self.degree == None or\
-		#   self.factor_l == None or self.queries == None or self.domain_dim == None:
-		#	raise CompatibilityError("LIGERO: attempted to determine field size with undefined parameters")
+		
+		# debug - check that all the required variables are not-empty
+		assert self.check_empty_entries(var = ("proximity_parameter", \
+			"interactive_soundness_error", "snd_type", "domain_dim")) == None, \
+			"LIGERO, empty required variable".format()
+		# - - - - - - - - - - end of debug - - - - - - - - - - #
 
 		pp = np.log2(self.proximity_parameter + 1)
 		isp = self.interactive_soundness_error
@@ -467,6 +450,11 @@ class LIGERO_parameters:
 		#  this function without actually modifying self.field_dim
 		#  or self.interactive_repetitions
 
+		# debug - check for empty required entries
+		assert self.check_empty_entries(var = ("domain_size", "degree", "factor_l", "protocol_tpye", \
+			"queries")) == None, "LIGERO, empty required entries"
+		# - - - - - - - - - - end of debug - - - - - - - - - - #
+
 		if sigma == None:
 			sigma = self.interactive_repetitions
 		if f == None:
@@ -504,19 +492,37 @@ class LIGERO_parameters:
 		# sigma and f are provided to make "speculative" calls. if not
 		#  provided we set them as the associated values in self
 
+		# debug - check for empty entries
+		assert self.check_empty_entries(var = ("protocol_type", "factor_m1", "factor_m2")) == None, \
+			"LIGERO, empty required variable"
+
 		if sigma == None:
+			# debug - check for empty entries
+			assert self.check_empty_entries(var = ("interactive_repetitions")) == None, \
+				"LIGERO, empty required variable"
+			# - - - - - end of debug - - - - - #
 			sigma = self.interactive_repetitions
+
 		if f == None:
+			# debug - check for empty entries
+			assert self.check_empty_entries(var = ("field_dim")) == None, \
+				"LIGERO, empty required variable"
+			# - - - - end of debug - - - - - #
 			f = self.field_dim
 
 		if self.protocol_type == "standard":
-			# oracles: w, x, y, z
+			# oracles: w (m1), x, y, z (m2)
 			# masking terms: sigma for 1 LDT, 3 Lin, 1 Row
 			out = (self.factor_m1 + 3*self.factor_m2 + 5 * sigma) * f
 		elif self.protocol_type == "optimised":
-			# oracles: w, x, y, z, t
+			# oracles: w (m1), x, y, z, t (m2)
 			# masking terms: sigma for 1 LDT, 3 Lin_h, 1 Row
 			out = (self.factor_m1 + 4*self.factor_m2 + 5 * sigma) * f
+
+			# debug - check for empty entries
+			assert self.check_empty_entries(var = ("interactive_soundness_error", "factor_l")) == None, \
+				"LIGERO, empty required variable"
+			# - - - - - end of debug - - - - - #
 
 			# masking terms for the modular lincheck
 			out += int(math.ceil((3 * self.interactive_soundness_error)/self.factor_l)) * f
@@ -526,6 +532,12 @@ class LIGERO_parameters:
 	def find_l_0(self):
 		# Returns the base point l_0 s.t. the protocol looks for
 		#  the best cost in [LGR_MIN_L * l_0, LGR_MAX_L * l_0]
+		
+		# debug - check for empty entries
+		assert self.check_empty_entries(var = ("variables", "constraints", "security_parameter")) == None, \
+			"LIGERO, empty required variable"
+		# - - - - - end of debug - - - - - #
+
 		l_0 = (max(self.variables, self.constraints)*float(self.security_parameter))**(0.5)
 
 		return(l_0)
@@ -540,9 +552,15 @@ class LIGERO_parameters:
 		self.factor_m2 = int(math.ceil(self.factor_m2))
 
 	def complete(self):
-		#if self.domain_dim == None or self.factor_l == None or self.degree == None:
-		#	raise CompatibilityError("LIGERO: attempted to set parameters from insufficient input")
+		# Using degree, domain_dim and factor_l set the other parameters
+		#  according to [AHIV17]
 
+		# debug - check for empty variables
+		assert self.check_empty_entries(var = ("domain_dim", "factor_l", "degree")) == None, \
+			"LIGERO empty required variable"
+		# - - - - - - - - - - end of debug - - - - - - - - - - #
+
+		# number of points in the RS domain
 		self.domain_size = 2**self.domain_dim
 
 		# e = floor((n - 2k + 1)/4)
@@ -585,14 +603,19 @@ class LIGERO_parameters:
 					(self.interactive_soundness_error + np.log2(self.proximity_parameter + 1))/float(self.field_dim)
 				self.interactive_repetitions = int(math.ceil(self.interactive_repetitions))
 
+		# debug - check that computation was correct
+		assert self.queries >= 1, "LIGERO, non positive queries"
+		# - - - - - end of debug - - - - - #
+
 	def estimate_cost(self, estimate = True):
 		# return an estimate of Ligero's cost
 		#  with the current parameters. if estimate
 		#  is True BSC will be faster and less precise
 
-		#if not self.check_empty_entries():
-		#	raise CompatibilityError("Cannot evalute cost as some fields are set to None")
-		#else:
+		# debug - check for empty entries
+		assert self.check_empty_entries(var = ("domain_size", "queries", "hash_size")) == None, \
+			"LIGERO, empty required variable"
+		# - - - - - - - - - end of debug - - - - - - - - - - #
 
 		rounds = self.find_rounds()
 		alphabet_size = self.find_alphabet_size()
@@ -676,8 +699,6 @@ class LIGERO_parameters:
 					elif self.queries != float('inf'):
 						domain_values_tmp.append(self.domain_dim)
 						min_degree_bound = min(min_degree_bound, self.factor_l + self.queries)
-					else:
-						print_debug("DEBUG: excluding n = {:d} for unreacheable soundness\n".format(self.domain_dim))
 
 				domain_values, domain_values_tmp = domain_values_tmp, []	
 				self.degree = min_degree_bound
@@ -702,12 +723,12 @@ class LIGERO_parameters:
 		return self.avg_cost()
 
 def LIGERO_test(dim = 18, sp = 128, fd = None, rmfe = None, snd_type = "proven", protocol_type = "standard", plot = False):
+	print_message("testing {:s} ligero, n = {:2d}".format(protocol_type, dim))
 	ligero_p = LIGERO_parameters(2**dim, 2**dim, sp, fd = fd, rmfe = rmfe,\
 		snd_type = snd_type, protocol_type = protocol_type)
 	cost = ligero_p.optimal_cost(plot = plot)
 
-	print_verbose_message(str(ligero_p))
-
+	print_message(str(ligero_p))
 	return cost
 
 def LIGERO_comparison_to_csv(filename, dim_min = 8, dim_max = 20, fd = None, rmfe = [(48, 160)], sp = 128\
@@ -1088,8 +1109,6 @@ class AURORA_parameters:
 		#	"standard" : classic Aurora
 		#	"optimised" : our version
 
-		print_debug("rmfe.type = {}, rmfe inner types = ({}, {})".format(type(rmfe), type(rmfe[0]), type(rmfe[1])))
-
 		self.field_dim = fd
 		self.security_parameter = sp
 
@@ -1119,6 +1138,9 @@ class AURORA_parameters:
 			self.security_parameter + 1, 	# Query Soundness Error (qsp)			\
 			self.security_parameter*2, 		# Hash size (h)							\
 			snd_type = snd_type, other_oracles = self.oracles_number())
+
+	def __str__(self):
+		return str(self.FRI_parameters)
 
 	def oracles_number(self):
 		# Number of oracles sent during the protocol. In this we consider
@@ -1180,9 +1202,11 @@ def AURORA_comparison_to_csv(filename, dim_min = 8, dim_max = 20, fd = 192, rmfe
 	file.close()
 
 def AURORA_test(dim = 18, fd = 192, sp = 128, rmfe = None, snd_type = "proven", protocol_type = "standard"):
+	print_message("testing {:s} aurora, n = {:2d}".format(protocol_type, dim))
 	aurora_p = AURORA_parameters(2**dim, 2**dim, fd, sp, rmfe = rmfe, snd_type = snd_type, protocol_type = protocol_type)
 
 	cost = aurora_p.optimal_cost()
+	print_message(str(aurora_p))
 	return cost
 
 #AURORA_comparison_to_csv("test_aurora_heuristic_rmfe_48_160", snd_type = "heuristic", rmfe = (48, 160))
@@ -1192,8 +1216,10 @@ def AURORA_test(dim = 18, fd = 192, sp = 128, rmfe = None, snd_type = "proven", 
 if __name__ == "__main__":
 	argv = sys.argv[1:]
 	
-	# -l 	--ligero 				Runs a test for Ligero
-	# -a 	--aurora 				Runs a test for Aurora
+	# -l 	--ligero 				Runs a comparison for Ligero
+	# -a 	--aurora 				Runs a comparison for Aurora
+	# -tl   --test_ligero			Runs a test for Ligero
+	# -ta 	--test_aurora 			Runs a test for Aurora
 	#
 	# -sp 	--security_parameter	Set the security parameter (1 arg)
 	# -ld 	--lowest_dimension		Set the minimum dimension tested, inclusive (1 arg)
@@ -1206,8 +1232,7 @@ if __name__ == "__main__":
 	# -D 	--directory				Absolute or relative path, added to filename as a prefix (1 arg)
 	# -v 	--verbose 				Print some information on the screen
 	# -vv 	--very_verbose 			Print more informations on the screen
-	# -d 	--debug 				Run in debug mode 
-
+	#
 	# maybe make a parameter class to handle this in a cleaner way
 	# clearly all but verbose flags
 
@@ -1241,6 +1266,14 @@ if __name__ == "__main__":
 			
 			elif key in ["-a", "--aurora"]:
 				test_type = "aurora"
+
+			elif key in ["-tl", "--test_ligero"]:
+				test_type = "test_ligero"
+				VERBOSE_FLAG = True
+
+			elif key in ["-ta", "--test_aurora"]:
+				test_type = "test_aurora"
+				VERBOSE_FLAG = True
 
 			elif key in ["-sp", "--security_parameter"]:
 				sp = int(argv[i+1])
@@ -1283,9 +1316,6 @@ if __name__ == "__main__":
 				VERY_VERBOSE_FLAG = True
 				VERBOSE_FLAG = True
 
-			elif key in ["-d", "--debug"]:
-				DEBUG = True
-
 			i += 1
 	except IndexError, ValueError:
 		print_help()
@@ -1293,14 +1323,13 @@ if __name__ == "__main__":
 
 	# set rmfe
 	if rmfe == None:
-		if test_type == "aurora":
+		if test_type in ["aurora", "test_aurora"]:
 			rmfe = (48, 198)
-		elif test_type == "ligero":
+		elif test_type in ["ligero", "test_ligero"]:
 			rmfe = (48, 160)
 
 	# set fd
-	print(rmfe, test_type)
-	if test_type == "aurora":
+	if test_type in ["aurora", "test_aurora"]:
 		fd = 192
 
 	# set filename
@@ -1315,3 +1344,25 @@ if __name__ == "__main__":
 	elif test_type == "ligero":
 		LIGERO_comparison_to_csv(filename, dim_min = dim_min, dim_max = dim_max, fd = fd, rmfe = rmfe, \
 			sp = sp, snd_type = snd_type)
+
+	elif test_type == "test_aurora":
+		for d in range(dim_min, dim_max + 1):
+			cost = AURORA_test(dim = d, fd = fd, sp = sp, snd_type = snd_type, protocol_type = "standard")
+			print_cost("Final cost", cost)
+			print_separator()
+		for d in range(dim_min, dim_max + 1):
+			cost = AURORA_test(dim = d, fd = fd, sp = sp, rmfe = rmfe, snd_type = snd_type, protocol_type = "optimised")
+			print_cost("Final cost", cost)
+			print_separator()
+		print_message("End of test")
+
+	elif test_type == "test_ligero":
+		for d in range(dim_min, dim_max + 1):
+			cost = LIGERO_test(dim = d, fd = fd, sp = sp, snd_type = snd_type, protocol_type = "standard")
+			print_cost("Final cost", cost)
+			print_separator()
+		for d in range(dim_min, dim_max + 1):
+			cost = LIGERO_test(dim = d, fd = fd, sp = sp, rmfe = rmfe, snd_type = snd_type, protocol_type = "optimised")
+			print_cost("Final cost", cost)
+			print_separator()
+		print_message("End of test")
