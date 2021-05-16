@@ -11,9 +11,18 @@ def csv_parse_line(string):
 	
 	# split with comma to get the values
 	vec = string.split(",")
-	vec = [ float(x) for x in vec ]
+	vec = [ eval(x) for x in vec ]
 
 	return vec
+
+def vec_transpose(vec):
+	assert len( {len(col) for col in vec} ) <= 1, "Transponing vector with different length lines"
+	
+	if vec == []:
+		return vec
+	else:
+		n = len(vec[0])
+		return [[line[i] for line in vec] for i in range(n)]
 
 def csv_parse(file_name):
 	f = open(file_name, "r")
@@ -23,32 +32,54 @@ def csv_parse(file_name):
 		vec.append(csv_parse_line(line))
 
 	f.close()
+
+	# we transpose so that lists of vec correspond to
+	#  columns of file_name.csv
+	vec = vec_transpose(vec)
+
 	return vec
 
-def csv_plot_(vec, ax):
-	if type(vec[0]) not in (list, tuple):
-		raise CompatibilityError("csv_plot expects an iterable of lists or tuples")
+def _csv_plot(vec, ax):
+	# debug
+	assert len(vec) >= 2, "Not enough data to plot, expecting at least two columns"
+	assert type(vec[0]) in (list, tuple), "Expected iterable of lists or tuples"
+	assert len( {len(col) for col in vec} ) <= 1, "Plotting columns of different length, currently not supported"
 
-	n = len(vec[0])
-	for x in vec:
-		if len(x) != n:
-			raise CompatibilityError("csv_plot inputs don't have the same length")
-
+	# get the x-axis values
 	x = vec[0]
+	# if the first entry is a string, use that for the x-label
+	if type(x[0]) == str:
+		ax.set_xlabel(x[0])
+		x = x[1:]
+
 	for i in range(1, len(vec)):
+		# fancy coloring - just for plotting data form optimiser.py
 		if i == 1:
-			ax.plot(x, vec[i], c = 'r', lw = 2.0)
+			c = 'b'
 		else:
-			ax.plot(x, vec[i], c = 'b', ls = "--")	
+			c = 'r'
+
+		data = vec[i]
+		legend_flag = False
+		# if the first entry is a string, use that for the legend
+		if type(data[0]) == str:
+			data = data[1:]
+			legend_flag = True
+
+		line, = ax.plot(x, data, c = c)
+		# if a legend was detected
+		if legend_flag:
+			line.set_label(vec[i][0])
+			ax.legend()
 
 def csv_plot(file_name, ax):
-	if file_name.split(".")[-1] != "csv":
-		raise CompatibilityError("Attempted to plot a non-csv file")
+	assert file_name.split(".")[-1] == "csv", "Plotting non csv file"
 
 	vec = csv_parse(file_name)
-	csv_plot_(vec, ax)
+	_csv_plot(vec, ax)
 
 	ax.set_ylim(ymin = 0)
+	ax.set_xscale('log', basex = 2)
 	ax.title.set_text(file_name)
 
 if __name__ == "__main__":

@@ -11,7 +11,7 @@ MKT_ESTIMATE_ITER = 20		# recommended 20
 MTK_FAST_FLAG = True 		# recommended True
 
 # constants used by ligero.
-LGR_MAX_SAMPLE = 150		# recommended 150
+LGR_MAX_SAMPLE = 2			# recommended 150
 LGR_MAX_DOMAIN_DIM = 6		# recommended 6
 
 # constants used by FRI
@@ -68,8 +68,17 @@ def print_separator(length = 36, indentation_length = 2, very_verbose = False):
 		print("\n" + " "*indentation_length + "="*length + "\n")
 
 def vec_to_csv(file, vec):
+	# Given a list of list, print each list as a csv column in file
+	#
+	# file 	: file object, already opened
+	# vec 	: list of list of the same length
+
+	# debug
+	assert len( {len(col) for col in vec} ) <= 1, "Writing columns of different length in csv"
+
 	#werite a vector into an open csv file
-	file.write(",".join([str(a) for a in vec]) + "\n")
+	for i in range(len(vec[0])):
+		file.write(",".join([repr(a[i]) for a in vec]) + "\n")
 
 def str_bold(s):
 	# print bold text, need the terminal to support ANSI
@@ -115,7 +124,7 @@ def str_help():
 	out += "\n"
 
 	out += "  {:s} {:s}:\n".format(str_bold("-hd, --highest_dimension"), str_underline("(1 argument)"))
-	out += " Set the maximum size of tested constrants, inclusive\n"
+	out += " Set the maximum size of tested constraints, inclusive\n"
 	out += "\n"
 
 	out += "  {:s}:\n".format(str_bold("-h, --heuristic"))
@@ -1176,48 +1185,52 @@ def comparison_to_csv(scheme, filename, dim_min, dim_max, fd, rmfe, sp, snd_type
 	#  sp 			: security parameter
 	#  snd_type 	: soundness type
 
-	with open(filename + ".csv", "w") as file:
-		# list of the constraints tested for both the standard and optimised version of scheme
-		vec_constraints_dim = [n for n in range(dim_min, dim_max + 1)]
+	print_message("Storing results in {}\n".format(filename + ".csv"))
 		
-		print_message("Writing results in {}\n".format(filename + ".csv"))
-		vec_to_csv(file, vec_constraints_dim)
+	# out : list of vectors (= columns) later copied in the csv
+	out = []
+	vec_constraints_dim = [n for n in range(dim_min, dim_max + 1)]
+	out.append(["constraints"] + [2**n for n in vec_constraints_dim])
 
-		# choose the parameter class
-		parameters_class = _parameters_class(scheme)
+	# choose the parameter class
+	parameters_class = _parameters_class(scheme)
 
-		vec_results = []
-		for n in vec_constraints_dim:
-			# execute the standard test
-			print_message("Running standard {:s} for n = {:2d}".format(scheme, n))
-			parameters = parameters_class(2**n, 2**n, fd, sp, snd_type, "standard")
-			vec_results.append(parameters.optimal_cost())
+	vec_results = []
+	for n in vec_constraints_dim:
+		# execute the standard test
+		print_message("Running standard {:s} for n = {:2d}".format(scheme, n))
+		parameters = parameters_class(2**n, 2**n, fd, sp, snd_type, "standard")
+		vec_results.append(parameters.optimal_cost())
 
-			# if VERY_VERBOSE_FLAG
-			print_verbose_cost("\nStandard {:s} with {:s} soundness, n = {:2d}".format(scheme, snd_type, n), \
-				vec_results[-1])
-			print_separator(very_verbose = True)
+		# if VERY_VERBOSE_FLAG
+		print_verbose_cost("\nStandard {:s} with {:s} soundness, n = {:2d}".format(scheme, snd_type, n), \
+			vec_results[-1])
+		print_separator(very_verbose = True)
 
-		# store the results
-		print_verbose_message("End of standard {:s} tests".format(scheme))
-		print_separator()
-		vec_to_csv(file, vec_results)
+	# store the results
+	print_verbose_message("End of standard {:s} tests".format(scheme))
+	print_separator()
+	out.append(["standard"] + vec_results)
 
-		vec_results = []
-		for n in vec_constraints_dim:
-			# execute the optimised test
-			print_message("Running optimised {:s} for n = {:2d}, rmfe = {}".format(scheme, n, rmfe))
-			parameters = parameters_class(2**n, 2**n, fd, sp, snd_type, "optimised", rmfe = rmfe)
-			vec_results.append(parameters.optimal_cost())
+	vec_results = []
+	for n in vec_constraints_dim:
+		# execute the optimised test
+		print_message("Running optimised {:s} for n = {:2d}, rmfe = {}".format(scheme, n, rmfe))
+		parameters = parameters_class(2**n, 2**n, fd, sp, snd_type, "optimised", rmfe = rmfe)
+		vec_results.append(parameters.optimal_cost())
 
-			# if VERY_VERBOSE_FLAG
-			print_verbose_cost("\nOptimised {:s} with {:s} soundness, n = {:2d}".format(scheme, snd_type, n), \
-				vec_results[-1])
-			print_separator(very_verbose = True)
+		# if VERY_VERBOSE_FLAG
+		print_verbose_cost("\nOptimised {:s} with {:s} soundness, n = {:2d}".format(scheme, snd_type, n), \
+			vec_results[-1])
+		print_separator(very_verbose = True)
 
-		# store the results
-		print_verbose_message("End of optimised {:s} tests".format(scheme))
-		vec_to_csv(file, vec_results)
+	# store the results
+	print_verbose_message("End of optimised {:s} tests".format(scheme))
+	out.append(["optimised"] + vec_results)
+
+	# write to csv file
+	with open(filename + ".csv", "w") as file:
+		vec_to_csv(file, out)
 
 def AURORA_test(dim = 18, fd = 192, sp = 128, rmfe = None, snd_type = "proven", protocol_type = "standard"):
 	print_message("testing {:s} aurora, n = {:2d}".format(protocol_type, dim))
