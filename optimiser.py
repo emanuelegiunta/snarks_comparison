@@ -22,6 +22,9 @@ FRI_MAX_LOCALIZATION_NUM = 4	# recommended 4
 class CompatibilityError(Exception):
 	pass
 
+class InputError(Exception):
+	pass
+
 # - - - - - - - - - - - - - - - - - - - #
 #	basic math and generic functions	#
 # - - - - - - - - - - - - - - - - - - - #
@@ -72,17 +75,24 @@ def str_underline(s):
 	# print underlined text, need the terminal to support ANSI
 	return "\033[4m{:s}\033[0m".format(s)
 
-def print_help():
-	out = str_bold("Parameter optimiser for Aurora [EC:BCRSVW19] and Ligero [CCS:AHIV17]\n\n")
+def str_synopsis():
+	out  = ""
 	out += str_bold("SYNOPSIS: ") + "{}\n".format(sys.argv[0])
 	out += "\t[-l] [-tl] [-a] [-ta] [-sp {arg}] [-ld {arg}] [-hd {arg}]\n"
 	out += "\t[-h] [-p] [-r {args}] [-fd {arg}] [-f {arg}]\n"
 	out += "\t[-D {arg}] [-v] [-vv] [-help]\n"
 	out += "\n"
-	out += str_bold("COMMAND LINE DESCRIPTION:\n")
-	out += "\n"
 	
 	out = out.format(arg = str_underline("1 argument"), args = str_underline("2 arguments"))
+	return out
+
+def str_help():
+	out  = ""
+	out += str_bold("Parameter optimiser for Aurora [EC:BCRSVW19] and Ligero [CCS:AHIV17]\n\n")
+	out += str_synopsis()
+
+	out += str_bold("COMMAND LINE DESCRIPTION:\n")
+	out += "\n"
 
 	out += "  {:s}:\n".format(str_bold("-l, --ligero"))
 	out += " Runs a comparison between standard and optimised ligero\n"
@@ -140,7 +150,7 @@ def print_help():
 	out += " Prints the following message\n"
 	out += "\n"
 
-	print out
+	return out
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
 #	monte carlo cost evalution for merkel-trees opening   #
@@ -1251,7 +1261,7 @@ if __name__ == "__main__":
 
 	# look for the help flag
 	if "-help" in argv:
-		print_help()
+		print(str_help())
 		sys.exit(0)
 
 	# Parse the input and set the variables
@@ -1316,9 +1326,14 @@ if __name__ == "__main__":
 				VERY_VERBOSE_FLAG = True
 				VERBOSE_FLAG = True
 
+			else:
+				# If there is no flag where a flag was expected
+				#  raise an InputError 
+				raise InputError
+
 			i += 1
-	except IndexError, ValueError:
-		print_help()
+	except (IndexError, ValueError, InputError):
+		print(str_synopsis())
 		sys.exit(0)
 
 	# set rmfe
