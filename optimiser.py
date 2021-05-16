@@ -6,20 +6,20 @@ import sys
 
 # - - Constants - - #
 # constants used by BSC
-MKT_ITER = 1000				# recommended 2500	
+MKT_ITER = 1				# recommended 2000	
 MKT_ESTIMATE_ITER = 20		# recommended 20
 MTK_FAST_FLAG = True 		# recommended True
 
 # constants used by ligero.
-LGR_MAX_SAMPLE = 200		# recommended 150
-LGR_MAX_DOMAIN_DIM = 6		# recommended 5
+LGR_MAX_SAMPLE = 150		# recommended 150
+LGR_MAX_DOMAIN_DIM = 6		# recommended 6
 
 # constants used by FRI
-FRI_ITER = 1000					# recommended 2500
+FRI_ITER = 1					# recommended 1000
 FRI_MAX_DOMAIN_DIM = 6			# recommended 6
 FRI_MAX_LOCALIZATION_NUM = 4	# recommended 4
 
-class CompatibilityError(Exception):
+class CompatibilityError(Exception): #de
 	pass
 
 class InputError(Exception):
@@ -59,9 +59,13 @@ def print_verbose_message(string):
 	if VERY_VERBOSE_FLAG and VERBOSE_FLAG:
 		print(string)
 
-def print_separator(length = 36, indentation_length = 2):
+def print_separator(length = 36, indentation_length = 2, very_verbose = False):
 	# print a line to separate data
-	print("\n" + " "*indentation_length + "="*length + "\n")
+	#  length 				: number of caracter printed
+	#  indentation_length 	: number of spaces before the line
+	#  very_verbose 		: if True check the VERY_VERBOSE_FLAG
+	if (not very_verbose) or VERY_VERBOSE_FLAG:
+		print("\n" + " "*indentation_length + "="*length + "\n")
 
 def vec_to_csv(file, vec):
 	#werite a vector into an open csv file
@@ -262,7 +266,7 @@ def com_BCS(hash_size, vec_alphabet_size, rounds, vec_oracle_length, vec_query, 
 # - - - - - - - - - - - - - - - #
 
 class LIGERO_parameters:
-	def __init__(self, n, m, sp, fd = None, rmfe = None, snd_type = "proven", protocol_type = "standard"):
+	def __init__(self, n, m, fd, sp, snd_type, protocol_type, rmfe = None):
 
 		self.protocol_type = protocol_type	# "standard" or "optimised"
 
@@ -270,16 +274,25 @@ class LIGERO_parameters:
 		self.constraints = m 				# constraints
 		self.field_dim = fd 				# log2(|F|)	
 
-		#checking if the size of the field is fixed
+		if self.protocol_type == "optimised":
+			# debug - the rmfe parameter has to be given
+			assert rmfe != None, "LIGERO, rmfe not given in optimised version"
+			# - - - - - end of debug - - - - - #
+
+			self.field_dim = rmfe[0]
+			self.rmfe = rmfe[1]				# Warning : this is ambiguous
+
+		# checking if the size of the field is fixed. A not given
+		#  value implies that the field size can be adjusted to minimize
+		#  communication costs.
 		if self.field_dim == None:
 			self.field_type = "variable"
-			self.field_size = None						# **
+			self.field_size = None						
 		else:
 			self.field_type = "fixed"
 			self.field_size = 2**self.field_dim
 
-		self.rmfe = rmfe
-
+		# setting the number of variables/constraints
 		if self.protocol_type == "standard":
 			# for each variable we need the constraint x^2 = x
 			self.constraints += self.variables
@@ -741,52 +754,6 @@ def LIGERO_test(dim = 18, sp = 128, fd = None, rmfe = None, snd_type = "proven",
 	print_message(str(ligero_p))
 	return cost
 
-def LIGERO_comparison_to_csv(filename, dim_min = 8, dim_max = 20, fd = None, rmfe = [(48, 160)], sp = 128\
-,   snd_type = "proven", wra = "w", skip_std = False):
-	
-	# filename :	string containing the name of the file. No need to specify an extension
-	# wra : 		a shorthand for "write, read, append"
-	# rmfe : 		is a list of rmfe parameters, tuples (k,m), tested individually
-	# dim_min :		minimum dimension tested, i.e. variables = constraints = 2**dim_min
-	# dim_max : 	maximum dimension tested, i.e. variables = constraints = 2**dim_max
-	# sp : 			security parameter
-	# snd-type : 	either "proven" for correct values or "heuristic" for better ones
-	# skip_std : 	skip the test on standand Ligero
-
-	file = open(filename + ".csv", wra)
-	vec_constraints_dim = [n for n in range(dim_min, dim_max + 1)]
-	
-	# adjust rmfe type
-	if type(rmfe[0]) == int:
-		rmfe = [rmfe]
-
-	if "a" not in wra:
-		print_message("Writing the header in {}".format(filename + ".csv"))
-		vec_to_csv(file, vec_constraints_dim)
-
-	if not skip_std:	# if the standard check is not skipped
-		vec_results = []
-		for n in vec_constraints_dim:
-			print_message("Running standard Ligero for n = {:2d}".format(n))
-			ligero_p = LIGERO_parameters(2**n, 2**n, sp, snd_type = snd_type, protocol_type = "standard")
-			vec_results.append(ligero_p.optimal_cost())
-
-		print_separator()
-		vec_to_csv(file, vec_results)
-
-	for rmfe_value in rmfe:
-		vec_results = []
-		for n in vec_constraints_dim:
-			print_message("Running optimised Ligero for n = {:2d} and rmfe {}".format(n, rmfe_value))
-			ligero_p = LIGERO_parameters(2**n, 2**n, sp, fd = rmfe_value[1], rmfe = rmfe_value[0],\
-				snd_type = snd_type, protocol_type = "optimised")
-			vec_results.append(ligero_p.optimal_cost())
-
-		print_separator()
-		vec_to_csv(file, vec_results)
-
-	file.close()
-
 # - - - - - - - - - - - - - - - - - #
 #	FRI soundness error and costs	#
 # - - - - - - - - - - - - - - - - - #
@@ -1109,7 +1076,7 @@ class FRI_parameters:
 # - - - - - - - - - - - - - - - - - #
 
 class AURORA_parameters:
-	def __init__(self, n, m, fd, sp, rmfe = None, snd_type = "proven", protocol_type = "standard"):
+	def __init__(self, n, m, fd, sp, snd_type, protocol_type, rmfe = None):
 		# n : number of input gates
 		# m : number of AND gates
 		# fd : field dimension (bitsize)
@@ -1177,39 +1144,80 @@ class AURORA_parameters:
 		# Optimal cost for Aurora with given parameters
 		fri_cost = self.FRI_parameters.optimal_cost()
 		extra_cost = self.extra_communication()
-
-		print_verbose_cost("Aurora %s with %s soundness"%(self.protocol_type, self.snd_type), fri_cost + extra_cost)
-		
 		return fri_cost + extra_cost
 
-def AURORA_comparison_to_csv(filename, dim_min = 8, dim_max = 20, fd = 192, rmfe = (48, 192)\
-,	sp = 128, snd_type = "proven", wra = "w", skip_std = False):
-	# wra is a shorthand for "write, read, append"
-	file = open(filename + ".csv", wra)
-	vec_constraints_dim = [n for n in range(dim_min, dim_max + 1)]
-	
-	if "a" not in wra:
-		print_message("Writing header in {}".format(filename + ".csv"))
+# - - - - - - - - - - - - - - - #
+# 	Testing functionalities 	#
+# - - - - - - - - - - - - - - - #
+
+def _parameters_class(scheme):
+	# Helper function for comparison_to_csv
+	#  return the parameter class requested from the test
+	#  
+	#  scheme : "ligero" or "aurora"
+
+	if scheme == "ligero":
+		return LIGERO_parameters
+	elif scheme == "aurora":
+		return AURORA_parameters
+	else:
+		# debug
+		assert False, "Requested unkown parameters class"
+
+def comparison_to_csv(scheme, filename, dim_min, dim_max, fd, rmfe, sp, snd_type):
+	# Make a comparison between plain scheme over F2 and our optimised version
+	#
+	#  scheme 		: "aurora" or "ligero" - choose which scheme to test
+	#  filename 	: name of the file in which final data is stored
+	#  dim_min 		: input size in the test start from 2**dim_min
+	#  dim_max 		: input size in the test end with 2**dim_max (inclusive)
+	#  fd 			: Aurora's field dimension
+	#  rmfe 		: A tuple (k,m) of rmfe parameters used in the opt
+	#  sp 			: security parameter
+	#  snd_type 	: soundness type
+
+	with open(filename + ".csv", "w") as file:
+		# list of the constraints tested for both the standard and optimised version of scheme
+		vec_constraints_dim = [n for n in range(dim_min, dim_max + 1)]
+		
+		print_message("Writing results in {}\n".format(filename + ".csv"))
 		vec_to_csv(file, vec_constraints_dim)
 
-	if not skip_std:
+		# choose the parameter class
+		parameters_class = _parameters_class(scheme)
+
 		vec_results = []
 		for n in vec_constraints_dim:
-			print_message("Running standard Aurora for n = {:d}".format(n))
-			aurora_p = AURORA_parameters(2**n, 2**n, fd, sp, rmfe = rmfe, snd_type = snd_type, protocol_type = "standard")
-			vec_results.append(aurora_p.optimal_cost())
+			# execute the standard test
+			print_message("Running standard {:s} for n = {:2d}".format(scheme, n))
+			parameters = parameters_class(2**n, 2**n, fd, sp, snd_type, "standard")
+			vec_results.append(parameters.optimal_cost())
 
+			# if VERY_VERBOSE_FLAG
+			print_verbose_cost("\nStandard {:s} with {:s} soundness, n = {:2d}".format(scheme, snd_type, n), \
+				vec_results[-1])
+			print_separator(very_verbose = True)
+
+		# store the results
+		print_verbose_message("End of standard {:s} tests".format(scheme))
+		print_separator()
 		vec_to_csv(file, vec_results)
 
-	vec_results = []
-	for n in vec_constraints_dim:
-		print_message("Running optimised Aurora for n = {:d}, rmfe = {}".format(n, rmfe))
-		aurora_p = AURORA_parameters(2**n, 2**n, fd, sp, rmfe = rmfe, snd_type = snd_type, protocol_type = "optimised")
-		vec_results.append(aurora_p.optimal_cost())
+		vec_results = []
+		for n in vec_constraints_dim:
+			# execute the optimised test
+			print_message("Running optimised {:s} for n = {:2d}, rmfe = {}".format(scheme, n, rmfe))
+			parameters = parameters_class(2**n, 2**n, fd, sp, snd_type, "optimised", rmfe = rmfe)
+			vec_results.append(parameters.optimal_cost())
 
-	vec_to_csv(file, vec_results)
+			# if VERY_VERBOSE_FLAG
+			print_verbose_cost("\nOptimised {:s} with {:s} soundness, n = {:2d}".format(scheme, snd_type, n), \
+				vec_results[-1])
+			print_separator(very_verbose = True)
 
-	file.close()
+		# store the results
+		print_verbose_message("End of optimised {:s} tests".format(scheme))
+		vec_to_csv(file, vec_results)
 
 def AURORA_test(dim = 18, fd = 192, sp = 128, rmfe = None, snd_type = "proven", protocol_type = "standard"):
 	print_message("testing {:s} aurora, n = {:2d}".format(protocol_type, dim))
@@ -1352,12 +1360,8 @@ if __name__ == "__main__":
 		filename = "{:s}_{:s}_sp_{:d}_rmfe_{:d}-{:d}".format(test_type, snd_type, sp, *rmfe)
 
 	# test execution
-	if test_type == "aurora":
-		AURORA_comparison_to_csv(filename, dim_min = dim_min, dim_max = dim_max, fd = fd, rmfe = rmfe, \
-			sp = sp, snd_type = snd_type)
-	
-	elif test_type == "ligero":
-		LIGERO_comparison_to_csv(filename, dim_min = dim_min, dim_max = dim_max, fd = fd, rmfe = rmfe, \
+	if test_type in ["aurora", "ligero"]:
+		comparison_to_csv(test_type, filename, dim_min = dim_min, dim_max = dim_max, fd = fd, rmfe = rmfe, \
 			sp = sp, snd_type = snd_type)
 
 	elif test_type == "test_aurora":
