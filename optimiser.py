@@ -6,16 +6,16 @@ import sys
 
 # - - Constants - - #
 # constants used by BSC
-MKT_ITER = 1				# recommended 2000	
+MKT_ITER = 2000				# recommended 2000	
 MKT_ESTIMATE_ITER = 20		# recommended 20
 MTK_FAST_FLAG = True 		# recommended True
 
 # constants used by ligero.
-LGR_MAX_SAMPLE = 2			# recommended 150
+LGR_MAX_SAMPLE = 150		# recommended 150
 LGR_MAX_DOMAIN_DIM = 6		# recommended 6
 
 # constants used by FRI
-FRI_ITER = 1					# recommended 1000
+FRI_ITER = 1000					# recommended 1000
 FRI_MAX_DOMAIN_DIM = 6			# recommended 6
 FRI_MAX_LOCALIZATION_NUM = 4	# recommended 4
 
