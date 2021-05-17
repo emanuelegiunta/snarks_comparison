@@ -6,16 +6,16 @@ import sys
 
 # - - Constants - - #
 # constants used by BSC
-MKT_ITER = 2000				# recommended 2000	
+MKT_ITER = 1				# recommended 2000	
 MKT_ESTIMATE_ITER = 20		# recommended 20
 MTK_FAST_FLAG = True 		# recommended True
 
 # constants used by ligero.
-LGR_MAX_SAMPLE = 150		# recommended 150
+LGR_MAX_SAMPLE = 2			# recommended 150
 LGR_MAX_DOMAIN_DIM = 6		# recommended 6
 
 # constants used by FRI
-FRI_ITER = 1000					# recommended 1000
+FRI_ITER = 1					# recommended 1000
 FRI_MAX_DOMAIN_DIM = 6			# recommended 6
 FRI_MAX_LOCALIZATION_NUM = 4	# recommended 4
 
@@ -59,12 +59,12 @@ def print_verbose_message(string):
 	if VERY_VERBOSE_FLAG and VERBOSE_FLAG:
 		print(string)
 
-def print_separator(length = 36, indentation_length = 2, very_verbose = False):
+def print_separator(length = 36, indentation_length = 2, verbose = False, very_verbose = False):
 	# print a line to separate data
 	#  length 				: number of caracter printed
 	#  indentation_length 	: number of spaces before the line
 	#  very_verbose 		: if True check the VERY_VERBOSE_FLAG
-	if (not very_verbose) or VERY_VERBOSE_FLAG:
+	if (very_verbose and VERY_VERBOSE_FLAG) or (verbose and VERBOSE_FLAG):
 		print("\n" + " "*indentation_length + "="*length + "\n")
 
 def vec_to_csv(file, vec):
@@ -89,10 +89,11 @@ def str_underline(s):
 	return "\033[4m{:s}\033[0m".format(s)
 
 def str_synopsis():
+	# message returned for ill formed input
 	out  = ""
 	out += str_bold("SYNOPSIS: ") + "{}\n".format(sys.argv[0])
 	out += "\t[-l] [-tl] [-a] [-ta] [-sp {arg}] [-ld {arg}] [-hd {arg}]\n"
-	out += "\t[-h] [-p] [-r {args}] [-fd {arg}] [-f {arg}]\n"
+	out += "\t[-h] [-p] [-r {arg}] [-fd {arg}] [-f {arg}]\n"
 	out += "\t[-D {arg}] [-v] [-vv] [-help]\n"
 	out += "\n"
 	
@@ -100,6 +101,7 @@ def str_synopsis():
 	return out
 
 def str_help():
+	# message returned with the -help option
 	out  = ""
 	out += str_bold("Parameter optimiser for Aurora [EC:BCRSVW19] and Ligero [CCS:AHIV17]\n\n")
 	out += str_synopsis()
@@ -135,8 +137,14 @@ def str_help():
 	out += " Uses proven soundness bounds\n"
 	out += "\n"
 
-	out += "  {:s} {:s}:\n".format(str_bold("-r, --rmfe"), str_underline("(2 arguments)"))
-	out += " Set the reverse multiplication-friendly embedding (k,m) used by the optimised version\n"
+	out += "  {:s} {:s}:\n".format(str_bold("-r, --rmfe"), str_underline("(1 argument)"))
+	out += " Set the reverse multiplication-friendly embedding (k,m) used by the optimised version. "
+	out += "Input should countain at least one ore more couples of integers "
+	out += "and has to be placed in quotes of double quotes and separated by commas, spaces or semicolons "
+	out += "(or a combination of them). Brakets are ignored. Below examples of valid input\n"
+	out += "\t\"48 192\" parsed as [(48, 192)]\n"
+	out += "\t\'[3,5];[2,3]\' parsed as [(3,5), (2,3)]\n"
+	out += "\t\"[(48, 160) (42; 135), [2 3]]\" parsed as [(48, 160), (42, 135), (2, 3)]\n"
 	out += "\n"
 
 	out += "  {:s} {:s}:\n".format(str_bold("-fd, --field_dimension"), str_underline("(1 argument)"))
@@ -161,7 +169,6 @@ def str_help():
 
 	out += "  {:s}:\n".format(str_bold("-help"))
 	out += " Prints the following message\n"
-	out += "\n"
 
 	return out
 
@@ -201,7 +208,6 @@ def mkt_single_cost(leaf_num, path_num):
 
 	k = int(math.ceil(np.log2(leaf_num)))
 	f = lambda i, n : n % (1 << (k - i))
-	i = 0
 	
 	# Count the number of hashes required per layer
 	for i in range(1, k + 1):
@@ -229,13 +235,19 @@ def mkt_avg_cost(leaf_num, path_num, iter_num = MKT_ITER):
 # - - - - - - - - - - - - - - - - - - - #
 
 def com_BCS(hash_size, vec_alphabet_size, rounds, vec_oracle_length, vec_query, estimate = False):
-	#hash_size : bit lambdaength of the hash output used (128/256)
-	#vec_alphabet_size : bit size of the alphabet used for the oracles (i.e. size of the field)
-	#rounds : number or rounds
-	#vec_oracle_length : length of the oracles sent
-	#vec_query : number of queries to the i-th oracle
+	# Evaluate the communication cost of BSC, i.e. the cost of opening
+	#  oracles, made of three terms: the size of acepting paths in the 
+	#  associated Merkel Tree and the actual message sent, an element
+	#  of the alphabet. Finally (rounds + 1) seeds - obtained as the hash
+	#  of previous messages - are required.
+	#
+	# hash_size 		: bit length of the hash output used (128/256)
+	# vec_alphabet_size : bit size of the alphabet used for the oracles (i.e. size of the field)
+	# rounds 			: number or rounds
+	# vec_oracle_length : length of the oracles sent
+	# vec_query 		: number of queries to the i-th oracle
 
-	#adapt single values for vec_oracle_length and vec_query:
+	# adapt single values for vec_oracle_length and vec_query:
 	if type(vec_oracle_length) != list:
 		vec_oracle_length = [vec_oracle_length]
 
@@ -252,20 +264,18 @@ def com_BCS(hash_size, vec_alphabet_size, rounds, vec_oracle_length, vec_query, 
 		"BSC, length of queries ({:d}) and alphabet ({:d}) differ".format(len(vec_query), len(vec_alphabet_size))
 
 	if not estimate:
-		#compute the number of mkt hashes required from Monte-Carlo evaluation
+		# compute the number of mkt hashes required from Monte-Carlo evaluation
 		mkt_opening = hash_size*sum(mkt_avg_cost(vec_oracle_length[i], vec_query[i]) for i in range(len(vec_query)))
 		mkt_opening = int(math.ceil(mkt_opening))
 	else:
-		#compute the number of mkt hashes required from an estimate of the expected value, faster
+		# compute the number of mkt hashes required from an estimate of the expected value, faster
 		mkt_opening = hash_size*sum(mkt_estimate_cost(vec_oracle_length[i], vec_query[i]) for i in range(len(vec_query)))
 
-	mkt_opened_elements = sum(vec_alphabet_size[i] * vec_query[i] for i in range(len(vec_query))) #cost of the opened items
+	# cost of the opened items
+	mkt_opened_elements = sum(vec_alphabet_size[i] * vec_query[i] for i in range(len(vec_query))) 
 	
-	mkt_round_hash = hash_size*(rounds + 1) #cost of the seed for verifiers replies
-
-	#print_cost("hashed path",mkt_opening)
-	#print_cost("oracle answer", mkt_opened_elements)
-	#print_cost("round hashes", mkt_round_hash)
+	# cost of the seed for verifiers replies
+	mkt_round_hash = hash_size*(rounds + 1) 
 
 	out = mkt_opening + mkt_opened_elements + hash_size*(rounds + 1) 
 	return out
@@ -1173,7 +1183,7 @@ def _parameters_class(scheme):
 		# debug
 		assert False, "Requested unkown parameters class"
 
-def comparison_to_csv(scheme, filename, dim_min, dim_max, fd, rmfe, sp, snd_type):
+def comparison_to_csv(scheme, filename, dim_min, dim_max, fd, rmfe_iter, sp, snd_type):
 	# Make a comparison between plain scheme over F2 and our optimised version
 	#
 	#  scheme 		: "aurora" or "ligero" - choose which scheme to test
@@ -1209,24 +1219,26 @@ def comparison_to_csv(scheme, filename, dim_min, dim_max, fd, rmfe, sp, snd_type
 
 	# store the results
 	print_verbose_message("End of standard {:s} tests".format(scheme))
-	print_separator()
+	print_separator(verbose = True)
 	out.append(["standard"] + vec_results)
 
-	vec_results = []
-	for n in vec_constraints_dim:
-		# execute the optimised test
-		print_message("Running optimised {:s} for n = {:2d}, rmfe = {}".format(scheme, n, rmfe))
-		parameters = parameters_class(2**n, 2**n, fd, sp, snd_type, "optimised", rmfe = rmfe)
-		vec_results.append(parameters.optimal_cost())
+	for rmfe in rmfe_iter:
+		vec_results = []
+		for n in vec_constraints_dim:
+			# execute the optimised test
+			print_message("Running optimised {:s} for n = {:2d}, rmfe = {}".format(scheme, n, rmfe))
+			parameters = parameters_class(2**n, 2**n, fd, sp, snd_type, "optimised", rmfe = rmfe)
+			vec_results.append(parameters.optimal_cost())
 
-		# if VERY_VERBOSE_FLAG
-		print_verbose_cost("\nOptimised {:s} with {:s} soundness, n = {:2d}".format(scheme, snd_type, n), \
-			vec_results[-1])
-		print_separator(very_verbose = True)
+			# if VERY_VERBOSE_FLAG
+			print_verbose_cost("\nOptimised {:s} with {:s} soundness, n = {:2d}".format(scheme, snd_type, n), \
+				vec_results[-1])
+			print_separator(very_verbose = True)
 
-	# store the results
-	print_verbose_message("End of optimised {:s} tests".format(scheme))
-	out.append(["optimised"] + vec_results)
+		# store the results
+		print_verbose_message("End of optimised {:s} tests, rmfe = {}".format(scheme, rmfe))
+		print_separator(verbose = True)
+		out.append(["optimised rmfe {:d} {:d}".format(*rmfe)] + vec_results)
 
 	# write to csv file
 	with open(filename + ".csv", "w") as file:
@@ -1240,9 +1252,42 @@ def AURORA_test(dim = 18, fd = 192, sp = 128, rmfe = None, snd_type = "proven", 
 	print_message(str(aurora_p))
 	return cost
 
-#AURORA_comparison_to_csv("test_aurora_heuristic_rmfe_48_160", snd_type = "heuristic", rmfe = (48, 160))
+# - - - - - - - - - - - - - #
+#	Input Parser and class 	#
+# - - - - - - - - - - - - - #
 
-#LIGERO_comparison_to_csv("Data/ligero_proven_RMFE_45_145", rmfe = [(45, 145)])
+def _parser_rmfe(s):
+	# Returns a list if the given string is compliant
+	#  (see -help to check current correct form)
+	#  otherwise return None.
+
+	# step 1: we strip brackets, commas and semicolons
+	for c in "}])([{,;":
+		s = s.replace(c, " ") # maybe we should replace this with a space
+
+	# step 2: we collaps consecutive spaces into one
+	while "  " in s:
+		s = s.replace("  ", " ")
+
+	# step 3: we remove trailing spaces
+	if s[0] == " ":
+		s = s[1:]
+	if s[-1] == " ":
+		s = s[:-1]
+
+	# step 4: we split
+	out = s.split(" ")
+
+	# we exclude the cases in which nothing is passed like "(,)" or ""
+	if len(out) == 0:
+		return None
+	
+	# step 5: produce the tuples assuming the string has an even number of entries 
+	#  and those entries are integers
+	try:
+		return [( int(out[2*i]), int(out[2*i + 1]) ) for i in range(len(out)/2)]
+	except ValueError, IndexError:
+		return None
 
 if __name__ == "__main__":
 	argv = sys.argv[1:]
@@ -1257,7 +1302,7 @@ if __name__ == "__main__":
 	# -hd 	--highest_dimension 	Set the maximum dimension tested, inclusive (1 arg)
 	# -h 	--heuristic 			Use heuristic soundness bounds (0 arg)
 	# -p 	--proven 				Use proven soudness bounds (0 arg)
-	# -r 	--rmfe 					Set the RMFE for the optmised version (2 arg)
+	# -r 	--rmfe 					Set the RMFE for the optmised version (1 arg)
 	# -fd 	--field_dimension 		Set the field dimension for the standard version (1 arg)
 	# -f 	--file_name 			Choose the file name (1 arg)
 	# -D 	--directory				Absolute or relative path, added to filename as a prefix (1 arg)
@@ -1271,10 +1316,10 @@ if __name__ == "__main__":
 	sp = 128
 	dim_min = 8
 	dim_max = 20
-	rmfe = None 		#auto completed after parsing
+	rmfe_iter = None 		#auto completed after parsing
 	snd_type = "proven" 
-	fd = None			#auto completed after parsing
-	filename = None 	#auto completed after parsing
+	fd = None				#auto completed after parsing
+	filename = None 		#auto completed after parsing
 	dirname = ""				
 	VERBOSE_FLAG = False
 	VERY_VERBOSE_FLAG = False
@@ -1325,8 +1370,10 @@ if __name__ == "__main__":
 				snd_type = "proven"
 
 			elif key in ["-r", "--rmfe"]:
-				rmfe = ( int(argv[i+1]), int(argv[i+2]) )
-				i += 2
+				rmfe_iter = _parser_rmfe( argv[i+1] )
+				if rmfe_iter == None:
+					raise InputError
+				i += 1
 
 			elif key in ["-fd", "--field_dimension"]:
 				fd = int(argv[i+1])
@@ -1358,11 +1405,11 @@ if __name__ == "__main__":
 		sys.exit(0)
 
 	# set rmfe
-	if rmfe == None:
+	if rmfe_iter == None:
 		if test_type in ["aurora", "test_aurora"]:
-			rmfe = (48, 198)
+			rmfe_iter = [(48, 198)]
 		elif test_type in ["ligero", "test_ligero"]:
-			rmfe = (48, 160)
+			rmfe_iter = [(48, 160)]
 
 	# set fd
 	if test_type in ["aurora", "test_aurora"]:
@@ -1370,11 +1417,14 @@ if __name__ == "__main__":
 
 	# set filename
 	if filename == None:
-		filename = "{:s}_{:s}_sp_{:d}_rmfe_{:d}-{:d}".format(test_type, snd_type, sp, *rmfe)
+		if len(rmfe_iter) == 1:
+			filename = "{:s}_{:s}_sp_{:d}_rmfe_{:d}-{:d}".format(test_type, snd_type, sp, *(rmfe_iter[0]))
+		else:
+			filename = "{:s}_{:s}_sp_{:d}_multi-rmfe".format(test_type, snd_type, sp)
 
 	# test execution
 	if test_type in ["aurora", "ligero"]:
-		comparison_to_csv(test_type, filename, dim_min = dim_min, dim_max = dim_max, fd = fd, rmfe = rmfe, \
+		comparison_to_csv(test_type, filename, dim_min = dim_min, dim_max = dim_max, fd = fd, rmfe_iter = rmfe_iter, \
 			sp = sp, snd_type = snd_type)
 
 	elif test_type == "test_aurora":
@@ -1383,7 +1433,7 @@ if __name__ == "__main__":
 			print_cost("Final cost", cost)
 			print_separator()
 		for d in range(dim_min, dim_max + 1):
-			cost = AURORA_test(dim = d, fd = fd, sp = sp, rmfe = rmfe, snd_type = snd_type, protocol_type = "optimised")
+			cost = AURORA_test(dim = d, fd = fd, sp = sp, rmfe = rmfe_iter, snd_type = snd_type, protocol_type = "optimised")
 			print_cost("Final cost", cost)
 			print_separator()
 		print_message("End of test")
@@ -1394,7 +1444,7 @@ if __name__ == "__main__":
 			print_cost("Final cost", cost)
 			print_separator()
 		for d in range(dim_min, dim_max + 1):
-			cost = LIGERO_test(dim = d, fd = fd, sp = sp, rmfe = rmfe, snd_type = snd_type, protocol_type = "optimised")
+			cost = LIGERO_test(dim = d, fd = fd, sp = sp, rmfe = rmfe_iter, snd_type = snd_type, protocol_type = "optimised")
 			print_cost("Final cost", cost)
 			print_separator()
 		print_message("End of test")
