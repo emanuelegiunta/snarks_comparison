@@ -24,7 +24,7 @@ def vec_transpose(vec):
 		n = len(vec[0])
 		return [[line[i] for line in vec] for i in range(n)]
 
-def csv_parse(file_name, transpose = True):
+def csv_parse(file_name):
 	f = open(file_name, "r")
 	vec = []
 
@@ -35,8 +35,7 @@ def csv_parse(file_name, transpose = True):
 
 	# we transpose so that lists of vec correspond to
 	#  columns of file_name.csv unless transpose = False
-	if transpose:
-		vec = vec_transpose(vec)
+	vec = vec_transpose(vec)
 
 	return vec
 

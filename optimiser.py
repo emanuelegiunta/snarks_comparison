@@ -11,13 +11,17 @@ MKT_ESTIMATE_ITER = 20		# recommended 20
 MTK_FAST_FLAG = True 		# recommended True
 
 # constants used by ligero.
-LGR_MAX_SAMPLE = 10			# recommended 150
-LGR_MAX_DOMAIN_DIM = 6		# recommended 6
+LGR_MAX_SAMPLE = 150			# recommended 150
+LGR_MAX_DOMAIN_DIM = 6			# recommended 6
 
 # constants used by FRI
-FRI_ITER = 500					# recommended 1000
+FRI_ITER = 1000					# recommended 1000
 FRI_MAX_DOMAIN_DIM = 6			# recommended 6
 FRI_MAX_LOCALIZATION_NUM = 4	# recommended 4
+
+# constants used by printing functions
+VERBOSE_FLAG = False
+VERY_VERBOSE_FLAG = False
 
 class CompatibilityError(Exception): #de
 	pass
@@ -353,8 +357,9 @@ class LIGERO_parameters:
 			self.LGR_MAX_L = 2.5
 
 	def check_empty_entries(self, var = [], exclude = False):
-		# check that all the variables beside those whose name
-		#  is in the list "all_but" are not set to None
+		# check that all the variables in var are not set to None
+		#  if exclude then check all variables beside those
+		#  whose name is in var
 		# 
 		# It returns the name of the empty variable. If no empty
 		#  variable is found, it returns None
@@ -1229,7 +1234,7 @@ def comparison_to_csv(scheme, filename, dim_min, dim_max, fd, sp, rmfe_iter, snd
 		# store the results
 		print_verbose_message("End of optimised {:s} tests, rmfe = {}".format(scheme, rmfe))
 		print_separator(verbose = True)
-		out.append(["optimised rmfe {:d} {:d}".format(*rmfe)] + vec_results)
+		out.append(["optimised rmfe {:3d} {:3d}".format(*rmfe)] + vec_results)
 
 	# write to csv file
 	with open(filename + ".csv", "w") as file:
@@ -1316,149 +1321,184 @@ def _parser_rmfe(s):
 	except ValueError, IndexError:
 		return None
 
-if __name__ == "__main__":
-	# -l 	--ligero 				Runs a comparison for Ligero
-	# -a 	--aurora 				Runs a comparison for Aurora
-	# -tl   --test_ligero			Runs a test for Ligero
-	# -ta 	--test_aurora 			Runs a test for Aurora
-	#
-	# -sp 	--security_parameter	Set the security parameter (1 arg)
-	# -ld 	--lowest_dimension		Set the minimum dimension tested, inclusive (1 arg)
-	# -hd 	--highest_dimension 	Set the maximum dimension tested, inclusive (1 arg)
-	# -h 	--heuristic 			Use heuristic soundness bounds (0 arg)
-	# -p 	--proven 				Use proven soudness bounds (0 arg)
-	# -r 	--rmfe 					Set the RMFE for the optmised version (1 arg)
-	# -fd 	--field_dimension 		Set the field dimension for the standard version (1 arg)
-	# -f 	--file_name 			Choose the file name (1 arg)
-	# -D 	--directory				Absolute or relative path, added to filename as a prefix (1 arg)
-	# -v 	--verbose 				Print some information on the screen
-	# -vv 	--very_verbose 			Print more informations on the screen
-	#
-	# maybe make a parameter class to handle this in a cleaner way
-	# clearly all but verbose flags
+class parser_input:
+	def __init__(self):
+		self.test_type = "compare"
+		self.scheme = "aurora"
+		self.sp = 128
+		self.dim_min = 8
+		self.dim_max = 20
+		self.rmfe_iter = None 		#auto completed after parsing
+		self.snd_type = "proven" 
+		self.fd = None				#auto completed after parsing
+		self.filename = None 		#auto completed after parsing
+		self.dirname = ""
 
+	def check_empty_entries(self, var = [], exclude = False):
+		# check that all variables in var are not set to None.
+		#  if exclude, then check all variables beside those
+		#  in var
+		# 
+		# It returns the name of the empty variable. If no empty
+		#  variable is found, it returns None
+
+		for key, value in vars(self).items():
+			if value == None and (key in var or exclude) and not (key in var and exclude):
+				return key
+		else:
+			return None
+
+	def parse(self, argv):
+		#
+		# -l 	--ligero 				Runs a comparison for Ligero
+		# -a 	--aurora 				Runs a comparison for Aurora
+		# -tl   --test_ligero			Runs a test for Ligero
+		# -ta 	--test_aurora 			Runs a test for Aurora
+		#
+		# -sp 	--security_parameter	Set the security parameter (1 arg)
+		# -ld 	--lowest_dimension		Set the minimum dimension tested, inclusive (1 arg)
+		# -hd 	--highest_dimension 	Set the maximum dimension tested, inclusive (1 arg)
+		# -h 	--heuristic 			Use heuristic soundness bounds (0 arg)
+		# -p 	--proven 				Use proven soudness bounds (0 arg)
+		# -r 	--rmfe 					Set the RMFE for the optmised version (1 arg)
+		# -fd 	--field_dimension 		Set the field dimension for the standard version (1 arg)
+		# -f 	--file_name 			Choose the file name (1 arg)
+		# -D 	--directory				Absolute or relative path, added to filename as a prefix (1 arg)
+		# -v 	--verbose 				Print some information on the screen
+		# -vv 	--very_verbose 			Print more informations on the screen
+
+		# look for the help flag
+		if "-help" in argv:
+			print(str_help())
+			sys.exit(0)
+
+		# We might need to modify global flag
+		global VERBOSE_FLAG
+		global VERY_VERBOSE_FLAG
+
+		# Parse the input and set the variables
+		try:
+			n, i = len(argv), 0
+			# check the arguments received
+			while i < n:
+				key = argv[i]
+				
+				if key in ["-l", "--ligero"]:
+					self.test_type = "compare"
+					self.scheme = "ligero"
+				
+				elif key in ["-a", "--aurora"]:
+					self.test_type = "compare"
+					self.scheme = "aurora"
+
+				elif key in ["-tl", "--test_ligero"]:
+					self.test_type = "test"
+					self.scheme = "ligero"
+					VERBOSE_FLAG = True
+
+				elif key in ["-ta", "--test_aurora"]:
+					self.test_type = "test"
+					self.scheme = "aurora"
+					VERBOSE_FLAG = True
+
+				elif key in ["-sp", "--security_parameter"]:
+					self.sp = int(argv[i+1])
+					i += 1
+
+				elif key in ["-ld", "--lowest_dimension"]:
+					self.dim_min = int(argv[i+1])
+					i += 1
+
+				elif key in ["-hd", "--highest_dimension"]:
+					self.dim_max = int(argv[i+1])
+					i += 1
+
+				elif key in ["-h", "--heuristic"]:
+					self.snd_type = "heuristic"
+
+				elif key in ["-p", "--proven"]:
+					self.snd_type = "proven"
+
+				elif key in ["-r", "--rmfe"]:
+					self.rmfe_iter = _parser_rmfe( argv[i+1] )
+					if self.rmfe_iter == None:
+						raise InputError
+					i += 1
+
+				elif key in ["-fd", "--field_dimension"]:
+					self.fd = int(argv[i+1])
+					i += 1
+
+				elif key in ["-f", "--file_name"]:
+					self.filename = str(argv[i+1])
+					i += 1
+
+				elif key in ["-D", "--directory"]:
+					self.dirname = str(argv[i+1])
+					i += 1
+
+				elif key in ["-v", "--verbose"]:
+					VERBOSE_FLAG = True
+
+				elif key in ["-vv", "--very_verbose"]:
+					VERY_VERBOSE_FLAG = True
+					VERBOSE_FLAG = True
+
+				else:
+					# If there is no flag where a flag was expected
+					#  raise an InputError 
+					raise InputError
+
+				i += 1
+		except (IndexError, ValueError, InputError):
+			print(str_synopsis())
+			sys.exit(0)
+
+	def complete(self):
+		# set rmfe
+		if self.rmfe_iter == None:
+			if self.scheme == "aurora":
+				self.rmfe_iter = [(48, 198)]
+			elif self.scheme == "ligero":
+				self.rmfe_iter = [(48, 160)]
+
+		# set fd
+		if self.scheme == "aurora":
+			self.fd = 192
+
+		# set filename
+		if self.filename == None:
+			if len(self.rmfe_iter) == 1:
+				self.filename = "{:s}_{:s}_sp_{:d}_rmfe_{:d}-{:d}".\
+					format(self.scheme, self.snd_type, self.sp, *(self.rmfe_iter[0]))
+			else:
+				self.filename = "{:s}_{:s}_sp_{:d}_multi-rmfe".\
+					format(self.scheme, self.snd_type, self.sp)
+
+	def run(self):
+		# test execution
+		if self.test_type == "compare":
+			comparison_to_csv(self.scheme, self.filename, self.dim_min, self.dim_max, self.fd, self.sp, \
+				self.rmfe_iter, self.snd_type)
+
+		elif self.test_type == "test":
+			general_test(self.scheme, self.dim_min, self.dim_max, self.fd, self.sp, self.rmfe_iter, self.snd_type)
+
+if __name__ == "__main__":
 	# drop the program name
 	argv = sys.argv[1:]
 
-	test_type = "compare"
-	scheme = "aurora"
-	sp = 128
-	dim_min = 8
-	dim_max = 20
-	rmfe_iter = None 		#auto completed after parsing
-	snd_type = "proven" 
-	fd = None				#auto completed after parsing
-	filename = None 		#auto completed after parsing
-	dirname = ""				
-	VERBOSE_FLAG = False
-	VERY_VERBOSE_FLAG = False
+	parser = parser_input()
 
-	# look for the help flag
-	if "-help" in argv:
-		print(str_help())
-		sys.exit(0)
+	# parse the input
+	parser.parse(argv)
 
-	# Parse the input and set the variables
-	try:
-		n, i = len(argv), 0
-		# check the arguments received
-		while i < n:
-			key = argv[i]
-			
-			if key in ["-l", "--ligero"]:
-				test_type = "compare"
-				scheme = "ligero"
-			
-			elif key in ["-a", "--aurora"]:
-				test_type = "compare"
-				scheme = "aurora"
+	# complete missing fields
+	parser.complete()
 
-			elif key in ["-tl", "--test_ligero"]:
-				test_type = "test"
-				scheme = "ligero"
-				VERBOSE_FLAG = True
+	# debug - all the parser fields has to be filled
+	assert parser.check_empty_entries(var = [], exclude = True)
+	# - - - - - end of debug - - - - - #
 
-			elif key in ["-ta", "--test_aurora"]:
-				test_type = "test"
-				scheme = "aurora"
-				VERBOSE_FLAG = True
-
-			elif key in ["-sp", "--security_parameter"]:
-				sp = int(argv[i+1])
-				i += 1
-
-			elif key in ["-ld", "--lowest_dimension"]:
-				dim_min = int(argv[i+1])
-				i += 1
-
-			elif key in ["-hd", "--highest_dimension"]:
-				dim_max = int(argv[i+1])
-				i += 1
-
-			elif key in ["-h", "--heuristic"]:
-				snd_type = "heuristic"
-
-			elif key in ["-p", "--proven"]:
-				snd_type = "proven"
-
-			elif key in ["-r", "--rmfe"]:
-				rmfe_iter = _parser_rmfe( argv[i+1] )
-				if rmfe_iter == None:
-					raise InputError
-				i += 1
-
-			elif key in ["-fd", "--field_dimension"]:
-				fd = int(argv[i+1])
-				i += 1
-
-			elif key in ["-f", "--file_name"]:
-				filename = str(argv[i+1])
-				i += 1
-
-			elif key in ["-D", "--directory"]:
-				dirname = str(argv[i+1])
-				i += 1
-
-			elif key in ["-v", "--verbose"]:
-				VERBOSE_FLAG = True
-
-			elif key in ["-vv", "--very_verbose"]:
-				VERY_VERBOSE_FLAG = True
-				VERBOSE_FLAG = True
-
-			else:
-				# If there is no flag where a flag was expected
-				#  raise an InputError 
-				raise InputError
-
-			i += 1
-	except (IndexError, ValueError, InputError):
-		print(str_synopsis())
-		sys.exit(0)
-
-	# set rmfe
-	if rmfe_iter == None:
-		if scheme == "aurora":
-			rmfe_iter = [(48, 198)]
-		elif scheme == "ligero":
-			rmfe_iter = [(48, 160)]
-
-	# set fd
-	if scheme == "aurora":
-		fd = 192
-
-	# set filename
-	if filename == None:
-		if len(rmfe_iter) == 1:
-			filename = "{:s}_{:s}_sp_{:d}_rmfe_{:d}-{:d}".format(scheme, snd_type, sp, *(rmfe_iter[0]))
-		else:
-			filename = "{:s}_{:s}_sp_{:d}_multi-rmfe".format(scheme, snd_type, sp)
-
-
-
-	# test execution
-	if test_type == "compare":
-		comparison_to_csv(scheme, filename, dim_min, dim_max, fd, sp, rmfe_iter, snd_type)
-
-	elif test_type == "test":
-		general_test(scheme, dim_min, dim_max, fd, sp, rmfe_iter, snd_type)
+	# run the requested process
+	parser.run()
