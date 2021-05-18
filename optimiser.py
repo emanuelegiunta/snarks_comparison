@@ -7,7 +7,7 @@ import os.path
 
 # - - Constants - - #
 # constants used by BSC
-MKT_ITER = 1000				# recommended 1000	
+MKT_ITER = 1				# recommended 1000	
 MKT_ESTIMATE_ITER = 20		# recommended 20
 MTK_FAST_FLAG = True 		# recommended True
 
@@ -16,7 +16,7 @@ LGR_MAX_SAMPLE = 150			# recommended 150
 LGR_MAX_DOMAIN_DIM = 6			# recommended 6
 
 # constants used by FRI
-FRI_ITER = 1000					# recommended 1000
+FRI_ITER = 1					# recommended 1000
 FRI_MAX_DOMAIN_DIM = 6			# recommended 6
 FRI_MAX_LOCALIZATION_NUM = 4	# recommended 4
 
@@ -47,6 +47,10 @@ def combr(n, m, k):
 	for i in range(k):
 		out *= (n - i)/float(m - i)
 	return out
+
+def xor(a, b):
+	# xor operator
+	return (a or b) and not (a and b)
 
 def print_cost(name, bit_cost):
 	if VERBOSE_FLAG:
@@ -298,7 +302,7 @@ def com_BCS(hash_size, vec_alphabet_size, rounds, vec_oracle_length, vec_query, 
 #	Ligero for binary circuits	#
 # - - - - - - - - - - - - - - - #
 
-class LIGERO_parameters:
+class ligero_parameters:
 	def __init__(self, n, m, fd, sp, snd_type, protocol_type, rmfe = None):
 
 		self.protocol_type = protocol_type	# "standard" or "optimised"
@@ -375,7 +379,7 @@ class LIGERO_parameters:
 		#  variable is found, it returns None
 
 		for key, value in vars(self).items():
-			if value == None and (key in var or exclude) and not (key in var and exclude):
+			if value == None and xor(key in var, exclude):
 				return key
 		else:
 			return None
@@ -783,7 +787,7 @@ class LIGERO_parameters:
 #	FRI soundness error and costs	#
 # - - - - - - - - - - - - - - - - - #
 
-class FRI_parameters:
+class fri_parameters:
 	def __init__(self, n, m, fd, isp, qsp, h, snd_type = "proven", other_oracles = []):
 
 		self.variables = n
@@ -814,29 +818,14 @@ class FRI_parameters:
 		# Either "proven" or "heuristic"
 		self.snd_type = snd_type
 
-	def check_empty_entries(self):
-		if self.domain_dim == None:
-			return False
-
-		if self.domain_size == None:
-			return False
-
-		if self.rate == None:
-			return False
-
-		if self.query_bound == None:
-			return False
-
-		if self.query_repetition == None:
-			return False
-
-		if self.localization_number == None:
-			return False
-
-		if self.relative_distance == None:
-			return False
-
-		return True
+	def check_empty_entries(self, var = [], exclude = False):
+		# check if any field is empty - should be a method in a super class
+		#
+		for key, value in vars(self).items():
+			if value == None and xor(key in var, exclude):
+				return key
+		else:
+			return None
 
 	def __str__(self):
 		out = "\n- - - - FRI pramaters - - - -\n"
@@ -865,6 +854,11 @@ class FRI_parameters:
 		# Montecarlo simulation to estimate the number of
 		# distinct queries to coset-hashed oracles in layer L^(i)
 		# with i such that |L^(i)| = N
+
+		# - - - - - debug - - - - - #
+		assert self.check_empty_entries(var = ["query_repetition"]) == None, "FRI, missing used variable"
+		# - - - end of debug - - - #
+
 		estimated_queries = 0.0
 
 		for j in range(FRI_ITER):									
@@ -876,16 +870,30 @@ class FRI_parameters:
 
 	def coset_hash_alphabet(self):
 		# Set the alphabet size for the other oracles (leaves are grouped in sets of 2^eta)
+
+		# - - - - - debug - - - - - #
+		assert self.check_empty_entries(var = ["field_dim", "localization_number", "other_oracles"]) == None, \
+			"FRI, missing required variable"
+		# - - - - end of debug - - - - #
 		return [int(math.ceil( n * self.field_dim * (2.0**self.localization_number) )) for n in self.other_oracles]
 
 	def coset_hash_length(self):
 		# Set the proof length for the other oracles (leaves are grouped in sets of 2^eta)
+
+		# - - - - - debug - - - - - #
+		assert self.check_empty_entries(var = ["domain_size", "localization_number", "other_oracles"]) == None, \
+			"FRI, missing required variable"
+		# - - - - end of debug - - - - #
+
 		return [int(math.ceil( n * self.domain_size / (2.0**self.localization_number) )) for n in self.other_oracles]
 
 	def coset_hash_queries(self):
 		#return the number of queries for the other oracles
-		if not self.check_empty_entries():
-			raise CompatibilityError("Evaluating queries for incomplete FRI parameters")
+		
+		# - - - - - debug - - - - - #
+		assert self.check_empty_entries(var = ["domain_size", "localization_number", "other_oracles"]) == None, \
+			"FRI, missing required variable"
+		# - - - - end of debug - - - - #
 
 		# return a list whith the same length of other_oracles
 		# that in each entry has the nnumber of estimated queries to each 
@@ -896,49 +904,58 @@ class FRI_parameters:
 		return [estimated_queries] * len(self.other_oracles)
 
 	def complete(self):
-		if self.query_bound == None or self.domain_dim == None or self.localization_number == None:
-			raise CompatibilityError("Unable to deduce FRI parameters")
-		else:
-			# update the domain size
-			self.domain_size = 2**self.domain_dim
+		# TODO ... add a comment ...
 
-			# set the rate of the RS code (hard-coded Aurora's parameters...)
-			self.rate = (2*max(self.variables, self.constraints) + 2*self.query_bound)/(2.0**self.domain_dim)
+		# - - - - - debug - - - - - #
+		assert self.check_empty_entries(var = ["query_bound", "domain_dim", "localization_number"]) == None, \
+			"FRI, missing required variable"
+		# - - - - end of debug - - - - #
 			
-			if self.snd_type == "proven":
-				# relative distance tested, hard-coded as a function of the rate
-				self.relative_distance = min( (1 - 2*self.rate)/2.0, (1 - self.rate)/3.0 )
+		# update the domain size
+		self.domain_size = 2**self.domain_dim
 
-			elif self.snd_type == "heuristic":
-				# See libiop, ldt_reducer, lines 39-42. In this case since the test is ZK
-				# max tested rate equals the rate
-				self.relative_distance = 1 - self.rate
+		# set the rate of the RS code (hard-coded Aurora's parameters...)
+		self.rate = (2*max(self.variables, self.constraints) + 2*self.query_bound)/(2.0**self.domain_dim)
+		
+		if self.snd_type == "proven":
+			# relative distance tested, hard-coded as a function of the rate
+			self.relative_distance = min( (1 - 2*self.rate)/2.0, (1 - self.rate)/3.0 )
 
-			# other term in the FRI soundness
-			#		d_0 = (1 - 3rho - 2^eta/v)/4 
-			# where rho is the rate, eta the localization parameter and v is
-			# the domain size
-			d_0 = (1.0 - 3.0*self.rate - (2.0**self.localization_number)/(self.domain_size**(0.5)))/4.0
+		elif self.snd_type == "heuristic":
+			# See libiop, ldt_reducer, lines 39-42. In this case since the test is ZK
+			# max tested rate equals the rate
+			self.relative_distance = 1 - self.rate
 
-			if self.snd_type == "proven":
-				# set the query repetition as the lowest number that achieve the right soundness.
-				# soundness is derived from BBHR18. If for the current parameter the soundness bound is
-				# 1 or greater we set query_repetition to infinity
-				if d_0 <= 0:
-					self.query_repetition = float('inf')
-				else:
-					self.query_repetition = -(self.query_soundness_error)/(np.log2(1 - min(self.relative_distance, d_0)))			
-					self.query_repetition = int(math.ceil(self.query_repetition))
-			
-			elif self.snd_type == "heuristic":
-				# set the query repetition as the lowest number that achieve the right heuristic soundness
-				# that is (1 - d)^l where d is the relative distance and l is the number of query repetitions.
-				# remark that this is always smaller than 1
-				self.query_repetition = -self.query_soundness_error / np.log2( 1 - self.relative_distance )
+		# other term in the FRI soundness
+		#		d_0 = (1 - 3rho - 2^eta/v)/4 
+		# where rho is the rate, eta the localization parameter and v is
+		# the domain size
+		d_0 = (1.0 - 3.0*self.rate - (2.0**self.localization_number)/(self.domain_size**(0.5)))/4.0
+
+		if self.snd_type == "proven":
+			# set the query repetition as the lowest number that achieve the right soundness.
+			# soundness is derived from BBHR18. If for the current parameter the soundness bound is
+			# 1 or greater we set query_repetition to infinity
+			if d_0 <= 0:
+				self.query_repetition = float('inf')
+			else:
+				self.query_repetition = -(self.query_soundness_error)/(np.log2(1 - min(self.relative_distance, d_0)))			
 				self.query_repetition = int(math.ceil(self.query_repetition))
+		
+		elif self.snd_type == "heuristic":
+			# set the query repetition as the lowest number that achieve the right heuristic soundness
+			# that is (1 - d)^l where d is the relative distance and l is the number of query repetitions.
+			# remark that this is always smaller than 1
+			self.query_repetition = -self.query_soundness_error / np.log2( 1 - self.relative_distance )
+			self.query_repetition = int(math.ceil(self.query_repetition))
 
 	def base_values_from_query_bound(self):
 		# Helper for optimize. Set all the independent parameters (beside the query bound) to the minimum value
+
+		# - - - - - debug - - - - - #
+		assert self.check_empty_entries(var = ["variables", "constraints", "query_bound"]) == None, \
+			"FRI, missing required variable"
+		# - - - - end of debug - - - - #		
 
 		if self.query_bound == None:
 			raise CompatibilityError("Unable to Reset FRI parameters, query bound set to None")
@@ -953,77 +970,72 @@ class FRI_parameters:
 			return(domain_dim, localization_number)
 
 	def estimate_cost(self, estimate = True, very_verbose = False):
-		if not self.check_empty_entries():
-			raise CompatibilityError("Cannot evalute cost as some fields are set to None")
-		else:
-			#maximum numer of rounds (BBHR18), recall that rate < 1
-			rounds = (self.domain_dim + np.log2(self.rate))/ self.localization_number
-			rounds = int(math.ceil(rounds))
+		# - - - - - debug - - - - - #
+		assert self.check_empty_entries(exclude = True) == None, "FRI, missing required variables"
+		# - - - - end of debug - - - - #
 
-			# We initialise the alphabet size, the oracle lenght and query complexity
-			# adding at first the masking term. I has
-			#	alphabet_size 	= |F| 2^\eta
-			#	oracle_length 	= |L| / 2^\eta
-			#	queries 		= l
-			# with |L| = domain_size, eta = localization_number, l = repetition number
-			# |F| the field size
+		#maximum numer of rounds (BBHR18), recall that rate < 1
+		rounds = (self.domain_dim + np.log2(self.rate))/ self.localization_number
+		rounds = int(math.ceil(rounds))
 
-			N = self.domain_size / 2**(self.localization_number)
+		# We initialise the alphabet size, the oracle lenght and query complexity
+		# adding at first the masking term. I has
+		#	alphabet_size 	= |F| 2^\eta
+		#	oracle_length 	= |L| / 2^\eta
+		#	queries 		= l
+		# with |L| = domain_size, eta = localization_number, l = repetition number
+		# |F| the field size
+
+		N = self.domain_size / 2**(self.localization_number)
+		estimated_queries = self.estimate_queries(N)
+
+		vec_alphabet_size 	= [self.field_dim * 2**self.localization_number]
+		vec_oracle_length 	= [N] 
+		vec_query 			= [estimated_queries]			
+
+		for i in range(rounds):
+			#number of points in L^(i+1)
+			N = self.domain_size / 2**(self.localization_number * (i + 1))
+			#number of queries made to f_		
 			estimated_queries = self.estimate_queries(N)
 
-			vec_alphabet_size 	= [self.field_dim * 2**self.localization_number]
-			vec_oracle_length 	= [N] 
-			vec_query 			= [estimated_queries]			
+			#OPTIMISATION:
+			#	if the ratio Q/N is higher than rho then it's more efficient to just
+			#	send the polynomial. In that case we truncate FRI recursion
+			if estimated_queries/float(N) > self.rate:
+				rounds = i
+				break
 
-			for i in range(rounds):
-				#number of points in L^(i+1)
-				N = self.domain_size / 2**(self.localization_number * (i + 1))
-				#number of queries made to f_		
-				estimated_queries = self.estimate_queries(N)
+			# add the values to the lists:
+			# 	alphabet : |F| * 2^\eta (coset hashing)
+			vec_alphabet_size.append(self.field_dim * (2**self.localization_number))
+			#	oracle length : |L^(i + i)| (coset hashin)
+			vec_oracle_length.append(N)
+			#	query complexity: add the estimated number of queries
+			vec_query.append(estimated_queries)
 
-				#OPTIMISATION:
-				#	if the ratio Q/N is higher than rho then it's more efficient to just
-				#	send the polynomial. In that case we truncate FRI recursion
-				if estimated_queries/float(N) > self.rate:
-					rounds = i
-					break
+		# We add the other oracles coming from outer protocols, considering coset hashing
+		vec_alphabet_size = self.coset_hash_alphabet() + vec_alphabet_size
+		vec_oracle_length = self.coset_hash_length() + vec_oracle_length
+		vec_query = self.coset_hash_queries() + vec_query
 
-				# add the values to the lists:
-				# 	alphabet : |F| * 2^\eta (coset hashing)
-				vec_alphabet_size.append(self.field_dim * (2**self.localization_number))
-				#	oracle length : |L^(i + i)| (coset hashin)
-				vec_oracle_length.append(N)
-				#	query complexity: add the estimated number of queries
-				vec_query.append(estimated_queries)
+		# For the round complexity, from left to right we have
+		# 	the round executed before running the LDT (number of entries in other_oracles)
+		# 	one round for the LDT masking term
+		# 	the FRI reduction rounds
+		# 	the final direct LDT round (after reduction)
+		total_rounds = len(self.other_oracles) + 1 + rounds + 1
 
-			# We add the other oracles coming from outer protocols, considering coset hashing
-			vec_alphabet_size = self.coset_hash_alphabet() + vec_alphabet_size
-			vec_oracle_length = self.coset_hash_length() + vec_oracle_length
-			vec_query = self.coset_hash_queries() + vec_query
+		bsc_cost = com_BCS(self.hash_size, vec_alphabet_size, 
+			total_rounds, vec_oracle_length, vec_query, estimate)
+		
+		# Dimension of the domain over which we perform the direct LDT
+		last_domain_size = self.domain_size / 2**(self.localization_number * rounds)
+		
+		# Cost of the last, direct LDT, done by sending all the coefficient of the polynomial
+		direct_ldt_costs = self.field_dim * self.rate * last_domain_size
 
-			# For the round complexity, from left to right we have
-			# 	the round executed before running the LDT (number of entries in other_oracles)
-			# 	one round for the LDT masking term
-			# 	the FRI reduction rounds
-			# 	the final direct LDT round (after reduction)
-			total_rounds = len(self.other_oracles) + 1 + rounds + 1
-
-			bsc_cost = com_BCS(self.hash_size, vec_alphabet_size, 
-				total_rounds, vec_oracle_length, vec_query, estimate)
-			
-			# Dimension of the domain over which we perform the direct LDT
-			last_domain_size = self.domain_size / 2**(self.localization_number * rounds)
-			# Cost of the last, direct LDT, done by sending all the coefficient of the polynomial
-			direct_ldt_costs = self.field_dim * self.rate * last_domain_size
-			
-
-			#if very_verbose:
-				# notice that with VERBOSE_FLAG = False, nothing is printed anyway
-			#	print_cost("BSC in FRI", bsc_cost)
-			#	print_cost("Direct LDT in FRI", direct_ldt_costs)
-			#print_cost("Total FRI", bsc_cost + direct_ldt_costs)
-
-			return bsc_cost + direct_ldt_costs
+		return bsc_cost + direct_ldt_costs
 
 	def avg_cost(self):
 		# Run estimate_cost setting the estimate flag to False.
@@ -1032,18 +1044,19 @@ class FRI_parameters:
 
 	def optimize(self):
 		# idea taken from libiop: we set the query bound to 0 and keep runnning
-		# the optimizer until the query bound is strictly smaller than the 
-		# query repetitions
+		#  the optimizer until the query bound is smaller than the 
+		#  query repetitions 
 	
 		self.query_bound = 0
-		tuple_out = None # Best triplet of parameters (q, eta, bv)
-		cost_out = float('inf') # current best cost
-		cost_tmp = float('inf') # current cost
+		tuple_out = None 			# Best triplet of parameters (q, eta, bv)
+		cost_out = float('inf') 	# current best cost
+		cost_tmp = float('inf') 	# current cost
 		
 		#to avoid repetitions we exclude already tested values
 		tested_list = []
 
 		while(True): #Emulate a do-while to find the best condition
+			
 			#set the minimum possible values for eta and bv
 			domain_dim_0, localization_number_0 = self.base_values_from_query_bound() 
 			exit_flag = True
@@ -1079,9 +1092,7 @@ class FRI_parameters:
 							exit_flag = False 
 							# there is still some couple (dimL, eta) not captured by the
 							#  current estimated queries bound
-
-
-
+							
 			# Exit condition:
 			# When he manages to match the query bound from the given query_repetitions
 			if exit_flag:
@@ -1100,7 +1111,7 @@ class FRI_parameters:
 #	Aurora's parameters and test 	#
 # - - - - - - - - - - - - - - - - - #
 
-class AURORA_parameters:
+class aurora_parameters:
 	def __init__(self, n, m, fd, sp, snd_type, protocol_type, rmfe = None):
 		# n : number of input gates
 		# m : number of AND gates
@@ -1132,7 +1143,7 @@ class AURORA_parameters:
 			self.constraints = 2**math.ceil(np.log2( float(m)/self.RMFE ))	# m' = m/k approximated to
 			self.constraints = int(self.constraints)						#  the smallest pow of 2
 
-		self.FRI_parameters = FRI_parameters(\
+		self.fri_parameters = fri_parameters(\
 			self.variables,					# Variable number (n)					\
 			self.constraints,				# Constraints number (m)				\
 			self.field_dim,					# Field dimension (fd)					\
@@ -1142,12 +1153,13 @@ class AURORA_parameters:
 			snd_type = snd_type, other_oracles = self.oracles_number())
 
 	def __str__(self):
-		return str(self.FRI_parameters)
+		return str(self.fri_parameters)
 
 	def oracles_number(self):
 		# Number of oracles sent during the protocol. In this we consider
 		# 	round 1: f_w, f_Az, f_Bz, f_Cz, sumcheck_mask
 		#	round 2: sumcheck_rest
+
 		if self.protocol_type == "standard":
 			return [5, 1]
 		elif self.protocol_type == "optimised":
@@ -1160,6 +1172,7 @@ class AURORA_parameters:
 		#  be avoided is the prover already knows the sum AND the
 		#  masking term is chosen to have zero sum. In the optimised version
 		#  this consist of the vectors in the Modular Lincheck
+
 		if self.protocol_type == "standard":
 			return 0
 		elif self.protocol_type == "optimised":
@@ -1167,7 +1180,8 @@ class AURORA_parameters:
 
 	def optimal_cost(self):
 		# Optimal cost for Aurora with given parameters
-		fri_cost = self.FRI_parameters.optimal_cost()
+
+		fri_cost = self.fri_parameters.optimal_cost()
 		extra_cost = self.extra_communication()
 		return fri_cost + extra_cost
 
@@ -1190,9 +1204,9 @@ def _parameters_class(scheme):
 	#  scheme : "ligero" or "aurora"
 
 	if scheme == "ligero":
-		return LIGERO_parameters
+		return ligero_parameters
 	elif scheme == "aurora":
-		return AURORA_parameters
+		return aurora_parameters
 	else:
 		# debug
 		assert False, "Requested unkown parameters class"
@@ -1518,7 +1532,7 @@ if __name__ == "__main__":
 	parser.complete()
 
 	# debug - all the parser fields has to be filled
-	assert parser.check_empty_entries(var = [], exclude = True)
+	assert parser.check_empty_entries(exclude = True) == None, "Parser has empty variables"
 	# - - - - - end of debug - - - - - #
 
 	# run the requested process
