@@ -6,16 +6,16 @@ import sys
 
 # - - Constants - - #
 # constants used by BSC
-MKT_ITER = 2000				# recommended 2000	
+MKT_ITER = 1000				# recommended 1000	
 MKT_ESTIMATE_ITER = 20		# recommended 20
 MTK_FAST_FLAG = True 		# recommended True
 
 # constants used by ligero.
-LGR_MAX_SAMPLE = 150		# recommended 150
+LGR_MAX_SAMPLE = 10			# recommended 150
 LGR_MAX_DOMAIN_DIM = 6		# recommended 6
 
 # constants used by FRI
-FRI_ITER = 1000					# recommended 1000
+FRI_ITER = 500					# recommended 1000
 FRI_MAX_DOMAIN_DIM = 6			# recommended 6
 FRI_MAX_LOCALIZATION_NUM = 4	# recommended 4
 
@@ -378,7 +378,7 @@ class LIGERO_parameters:
 		out += "field type:\t\t%s\n" % str(self.field_type)
 
 		if self.protocol_type == "optimised":
-			out += "RMFE parameters:\t({},{})\n".format(self.rmfe, self.field_dim)
+			out += "RMFE parameters:\t({}, {})\n".format(self.rmfe, self.field_dim)
 
 		out += "query soundness:\t%d\n" % self.query_soundness_error
 		out += "interactive soundnes:\t%d\n" % self.interactive_soundness_error
@@ -763,15 +763,6 @@ class LIGERO_parameters:
 		# optimise all parameters and return the total proof size
 		self.optimize(plot = plot)
 		return self.avg_cost()
-
-def LIGERO_test(dim = 18, sp = 128, fd = None, rmfe = None, snd_type = "proven", protocol_type = "standard", plot = False):
-	print_message("testing {:s} ligero, n = {:2d}".format(protocol_type, dim))
-	ligero_p = LIGERO_parameters(2**dim, 2**dim, sp, fd = fd, rmfe = rmfe,\
-		snd_type = snd_type, protocol_type = protocol_type)
-	cost = ligero_p.optimal_cost(plot = plot)
-
-	print_message(str(ligero_p))
-	return cost
 
 # - - - - - - - - - - - - - - - - - #
 #	FRI soundness error and costs	#
@@ -1183,7 +1174,7 @@ def _parameters_class(scheme):
 		# debug
 		assert False, "Requested unkown parameters class"
 
-def comparison_to_csv(scheme, filename, dim_min, dim_max, fd, rmfe_iter, sp, snd_type):
+def comparison_to_csv(scheme, filename, dim_min, dim_max, fd, sp, rmfe_iter, snd_type):
 	# Make a comparison between plain scheme over F2 and our optimised version
 	#
 	#  scheme 		: "aurora" or "ligero" - choose which scheme to test
@@ -1191,7 +1182,7 @@ def comparison_to_csv(scheme, filename, dim_min, dim_max, fd, rmfe_iter, sp, snd
 	#  dim_min 		: input size in the test start from 2**dim_min
 	#  dim_max 		: input size in the test end with 2**dim_max (inclusive)
 	#  fd 			: Aurora's field dimension
-	#  rmfe 		: A tuple (k,m) of rmfe parameters used in the opt
+	#  rmfe_iter 	: A list of tuples (k,m) of rmfe parameters used in the optimised version
 	#  sp 			: security parameter
 	#  snd_type 	: soundness type
 
@@ -1244,13 +1235,49 @@ def comparison_to_csv(scheme, filename, dim_min, dim_max, fd, rmfe_iter, sp, snd
 	with open(filename + ".csv", "w") as file:
 		vec_to_csv(file, out)
 
-def AURORA_test(dim = 18, fd = 192, sp = 128, rmfe = None, snd_type = "proven", protocol_type = "standard"):
-	print_message("testing {:s} aurora, n = {:2d}".format(protocol_type, dim))
-	aurora_p = AURORA_parameters(2**dim, 2**dim, fd, sp, rmfe = rmfe, snd_type = snd_type, protocol_type = protocol_type)
+def general_test(scheme, dim_min, dim_max, fd, sp, rmfe_iter, snd_type):
+	# General test suite. Return all the parameters found during the optimisations process
+	#
+	# scheme 	: "aurora" or "ligero" or other implemented schemes (see -help)
+	# dim_min 	: input size in the test start from 2**dim_min
+	# dim_max 	: input size in the test end with 2**dim_max (inclusive)
+	# fd 		: Aurora's field dimension
+	# rmfe 		: A tuple (k,m) of rmfe parameters used in the opt
+	# sp 		: security parameter
+	# snd_type 	: soundness type	parameters_class = _parameters_class(scheme)
+	
+	parameters_class = _parameters_class(scheme)
 
-	cost = aurora_p.optimal_cost()
-	print_message(str(aurora_p))
-	return cost
+	for dim in range(dim_min, dim_max + 1):
+		print_message("Testing standard {:s}, n = {:2d}".format(scheme, dim))
+
+		# initialize the parameters of the selected scheme
+		parameters = parameters_class(2**dim, 2**dim, fd, sp, snd_type, "standard")
+
+		# find optimal parameters and get the nimum cost associated
+		cost = parameters.optimal_cost()
+
+		# print the optimal parameters and the cost found
+		print_message(str(parameters))
+		print_cost("Final cost", cost)
+		print_separator(verbose = True)
+
+	for rmfe in rmfe_iter:
+		for dim in range(dim_min, dim_max + 1):
+			print_message("Testing optimised {:s}, n = {:2d}, rmfe = {}".format(scheme, dim, rmfe))
+
+			# initialize the parameters of the selected scheme
+			parameters = parameters_class(2**dim, 2**dim, fd, sp, snd_type, "optimised", rmfe = rmfe)
+
+			# find optimal parameters and get the nimum cost associated
+			cost = parameters.optimal_cost()
+
+			# print the optimal parameters and the cost found
+			print_message(str(parameters))
+			print_cost("Final cost", cost)
+			print_separator(verbose = True)
+
+	print_message("End of test")
 
 # - - - - - - - - - - - - - #
 #	Input Parser and class 	#
@@ -1290,8 +1317,6 @@ def _parser_rmfe(s):
 		return None
 
 if __name__ == "__main__":
-	argv = sys.argv[1:]
-	
 	# -l 	--ligero 				Runs a comparison for Ligero
 	# -a 	--aurora 				Runs a comparison for Aurora
 	# -tl   --test_ligero			Runs a test for Ligero
@@ -1312,7 +1337,11 @@ if __name__ == "__main__":
 	# maybe make a parameter class to handle this in a cleaner way
 	# clearly all but verbose flags
 
-	test_type = "aurora"
+	# drop the program name
+	argv = sys.argv[1:]
+
+	test_type = "compare"
+	scheme = "aurora"
 	sp = 128
 	dim_min = 8
 	dim_max = 20
@@ -1323,7 +1352,6 @@ if __name__ == "__main__":
 	dirname = ""				
 	VERBOSE_FLAG = False
 	VERY_VERBOSE_FLAG = False
-	DEBUG = False 
 
 	# look for the help flag
 	if "-help" in argv:
@@ -1338,17 +1366,21 @@ if __name__ == "__main__":
 			key = argv[i]
 			
 			if key in ["-l", "--ligero"]:
-				test_type = "ligero"
+				test_type = "compare"
+				scheme = "ligero"
 			
 			elif key in ["-a", "--aurora"]:
-				test_type = "aurora"
+				test_type = "compare"
+				scheme = "aurora"
 
 			elif key in ["-tl", "--test_ligero"]:
-				test_type = "test_ligero"
+				test_type = "test"
+				scheme = "ligero"
 				VERBOSE_FLAG = True
 
 			elif key in ["-ta", "--test_aurora"]:
-				test_type = "test_aurora"
+				test_type = "test"
+				scheme = "aurora"
 				VERBOSE_FLAG = True
 
 			elif key in ["-sp", "--security_parameter"]:
@@ -1406,45 +1438,27 @@ if __name__ == "__main__":
 
 	# set rmfe
 	if rmfe_iter == None:
-		if test_type in ["aurora", "test_aurora"]:
+		if scheme == "aurora":
 			rmfe_iter = [(48, 198)]
-		elif test_type in ["ligero", "test_ligero"]:
+		elif scheme == "ligero":
 			rmfe_iter = [(48, 160)]
 
 	# set fd
-	if test_type in ["aurora", "test_aurora"]:
+	if scheme == "aurora":
 		fd = 192
 
 	# set filename
 	if filename == None:
 		if len(rmfe_iter) == 1:
-			filename = "{:s}_{:s}_sp_{:d}_rmfe_{:d}-{:d}".format(test_type, snd_type, sp, *(rmfe_iter[0]))
+			filename = "{:s}_{:s}_sp_{:d}_rmfe_{:d}-{:d}".format(scheme, snd_type, sp, *(rmfe_iter[0]))
 		else:
-			filename = "{:s}_{:s}_sp_{:d}_multi-rmfe".format(test_type, snd_type, sp)
+			filename = "{:s}_{:s}_sp_{:d}_multi-rmfe".format(scheme, snd_type, sp)
+
+
 
 	# test execution
-	if test_type in ["aurora", "ligero"]:
-		comparison_to_csv(test_type, filename, dim_min = dim_min, dim_max = dim_max, fd = fd, rmfe_iter = rmfe_iter, \
-			sp = sp, snd_type = snd_type)
+	if test_type == "compare":
+		comparison_to_csv(scheme, filename, dim_min, dim_max, fd, sp, rmfe_iter, snd_type)
 
-	elif test_type == "test_aurora":
-		for d in range(dim_min, dim_max + 1):
-			cost = AURORA_test(dim = d, fd = fd, sp = sp, snd_type = snd_type, protocol_type = "standard")
-			print_cost("Final cost", cost)
-			print_separator()
-		for d in range(dim_min, dim_max + 1):
-			cost = AURORA_test(dim = d, fd = fd, sp = sp, rmfe = rmfe_iter, snd_type = snd_type, protocol_type = "optimised")
-			print_cost("Final cost", cost)
-			print_separator()
-		print_message("End of test")
-
-	elif test_type == "test_ligero":
-		for d in range(dim_min, dim_max + 1):
-			cost = LIGERO_test(dim = d, fd = fd, sp = sp, snd_type = snd_type, protocol_type = "standard")
-			print_cost("Final cost", cost)
-			print_separator()
-		for d in range(dim_min, dim_max + 1):
-			cost = LIGERO_test(dim = d, fd = fd, sp = sp, rmfe = rmfe_iter, snd_type = snd_type, protocol_type = "optimised")
-			print_cost("Final cost", cost)
-			print_separator()
-		print_message("End of test")
+	elif test_type == "test":
+		general_test(scheme, dim_min, dim_max, fd, sp, rmfe_iter, snd_type)
