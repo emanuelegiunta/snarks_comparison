@@ -3,6 +3,7 @@ import numpy.random as rnd
 import math
 import matplotlib.pyplot as plt
 import sys 
+import os.path
 
 # - - Constants - - #
 # constants used by BSC
@@ -175,6 +176,15 @@ def str_help():
 	out += " Prints the following message\n"
 
 	return out
+
+def str_input(s = ""):
+	# prompt the user with s and reads the input on the stdin
+	#  defined to be compatible with both python 2 and 3
+	#	
+	if sys.version_info.major == 2:
+		return raw_input(s)
+	else:
+		return input(s)
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
 #	monte carlo cost evalution for merkel-trees opening   #
@@ -1165,6 +1175,14 @@ class AURORA_parameters:
 # 	Testing functionalities 	#
 # - - - - - - - - - - - - - - - #
 
+def _check_file(filename):
+	if os.path.isfile(filename):
+		user_input = str_input(str_bold("Warning: ") + "\"{}\" already exists. Overwrite? (y/n) ".format(filename))
+		
+		if user_input.lower() not in ["y", "yes"]:
+			print("Aborting.")
+			sys.exit(0)
+
 def _parameters_class(scheme):
 	# Helper function for comparison_to_csv
 	#  return the parameter class requested from the test
@@ -1191,7 +1209,10 @@ def comparison_to_csv(scheme, filename, dim_min, dim_max, fd, sp, rmfe_iter, snd
 	#  sp 			: security parameter
 	#  snd_type 	: soundness type
 
-	print_message("Storing results in {}\n".format(filename + ".csv"))
+	filename = filename + ".csv"
+	_check_file(filename)
+
+	print_message("Storing results in {}\n".format(filename))
 		
 	# out : list of vectors (= columns) later copied in the csv
 	out = []
@@ -1237,7 +1258,7 @@ def comparison_to_csv(scheme, filename, dim_min, dim_max, fd, sp, rmfe_iter, snd
 		out.append(["optimised rmfe {:3d} {:3d}".format(*rmfe)] + vec_results)
 
 	# write to csv file
-	with open(filename + ".csv", "w") as file:
+	with open(filename, "w") as file:
 		vec_to_csv(file, out)
 
 def general_test(scheme, dim_min, dim_max, fd, sp, rmfe_iter, snd_type):

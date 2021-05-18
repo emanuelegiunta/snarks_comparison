@@ -53,12 +53,6 @@ def _csv_plot(vec, ax):
 		x = x[1:]
 
 	for i in range(1, len(vec)):
-		# fancy coloring - just for plotting data form optimiser.py
-		if i == 1:
-			c = 'b'
-		else:
-			c = 'r'
-
 		data = vec[i]
 		legend_flag = False
 		# if the first entry is a string, use that for the legend
@@ -66,7 +60,7 @@ def _csv_plot(vec, ax):
 			data = data[1:]
 			legend_flag = True
 
-		line, = ax.plot(x, data, c = c)
+		line, = ax.plot(x, data)
 		# if a legend was detected
 		if legend_flag:
 			line.set_label(vec[i][0])
