@@ -14,7 +14,7 @@ For a quick test try the following commands
     $ python optimiser.py -a -ld 6 -hd 8 -v
     $ python optimiser.py -l -ld 6 -hd 8 -v
 ```
-Which instructs the program to perform a comparison with respect to Aurora/Ligero for the number of constranints from 2^6 to 2^8 (inclusive) and turn the verbose flag on. By `-a` with `-ta` instead of producing a .csv file will print on screen the parameters that minimises costs in each case. For more informations on the optional flags
+Which instructs the program to perform a comparison with respect to Aurora/Ligero for the number of constranints from 2^6 to 2^8 (inclusive) and turn the verbose flag on. By replacing `-a` with `-ta` instead of producing a .csv file it will print on screen the parameters that minimises costs in each case. For more informations on the optional flags
 ```
     $ python optimiser.py -help
 ```
