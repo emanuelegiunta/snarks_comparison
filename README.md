@@ -1,6 +1,6 @@
 # zk-SNARKs Argument size comparison
 
-The repository provides tool to evaluate the argument size of two (at the moment) IOP-based zkSNARKs Ligero [[AHIV17]](https://acmccs.github.io/papers/p2087-amesA.pdf) and Aurora [[BCRSVW19]](https://eprint.iacr.org/2018/828) when applied to a R1CS of prescribed size over the binary field, and compare the result with the same scheme aplying several optimisation.
+The repository provides tool to evaluate the argument size of two (at the moment) IOP-based zkSNARKs: Ligero [[AHIV17]](https://acmccs.github.io/papers/p2087-amesA.pdf) and Aurora [[BCRSVW19]](https://eprint.iacr.org/2018/828) when applied to a R1CS of prescribed size over the binary field, and compare the result with the same scheme applying several optimisations.
 
 ### Installation and usage
 The only requirement is any version of Python2 or Python3. To compute a full comparison execute
