@@ -1092,7 +1092,7 @@ class fri_parameters:
 							exit_flag = False 
 							# there is still some couple (dimL, eta) not captured by the
 							#  current estimated queries bound
-							
+
 			# Exit condition:
 			# When he manages to match the query bound from the given query_repetitions
 			if exit_flag:
@@ -1236,44 +1236,46 @@ def comparison_to_csv(scheme, filename, dim_min, dim_max, fd, sp, rmfe_iter, snd
 	# choose the parameter class
 	parameters_class = _parameters_class(scheme)
 
-	vec_results = []
-	for n in vec_constraints_dim:
-		# execute the standard test
-		print_message("Running standard {:s} for n = {:2d}".format(scheme, n))
-		parameters = parameters_class(2**n, 2**n, fd, sp, snd_type, "standard")
-		vec_results.append(parameters.optimal_cost())
-
-		# if VERY_VERBOSE_FLAG
-		print_verbose_cost("\nStandard {:s} with {:s} soundness, n = {:2d}".format(scheme, snd_type, n), \
-			vec_results[-1])
-		print_separator(very_verbose = True)
-
-	# store the results
-	print_verbose_message("End of standard {:s} tests".format(scheme))
-	print_separator(verbose = True)
-	out.append(["standard"] + vec_results)
-
-	for rmfe in rmfe_iter:
+	try:
 		vec_results = []
 		for n in vec_constraints_dim:
-			# execute the optimised test
-			print_message("Running optimised {:s} for n = {:2d}, rmfe = {}".format(scheme, n, rmfe))
-			parameters = parameters_class(2**n, 2**n, fd, sp, snd_type, "optimised", rmfe = rmfe)
+			# execute the standard test
+			print_message("Running standard {:s} for n = {:2d}".format(scheme, n))
+			parameters = parameters_class(2**n, 2**n, fd, sp, snd_type, "standard")
 			vec_results.append(parameters.optimal_cost())
 
 			# if VERY_VERBOSE_FLAG
-			print_verbose_cost("\nOptimised {:s} with {:s} soundness, n = {:2d}".format(scheme, snd_type, n), \
+			print_verbose_cost("\nStandard {:s} with {:s} soundness, n = {:2d}".format(scheme, snd_type, n), \
 				vec_results[-1])
 			print_separator(very_verbose = True)
 
 		# store the results
-		print_verbose_message("End of optimised {:s} tests, rmfe = {}".format(scheme, rmfe))
+		print_verbose_message("End of standard {:s} tests".format(scheme))
 		print_separator(verbose = True)
-		out.append(["optimised rmfe {:3d} {:3d}".format(*rmfe)] + vec_results)
+		out.append(["standard"] + vec_results)
 
-	# write to csv file
-	with open(filename, "w") as file:
-		vec_to_csv(file, out)
+		for rmfe in rmfe_iter:
+			vec_results = []
+			for n in vec_constraints_dim:
+				# execute the optimised test
+				print_message("Running optimised {:s} for n = {:2d}, rmfe = {}".format(scheme, n, rmfe))
+				parameters = parameters_class(2**n, 2**n, fd, sp, snd_type, "optimised", rmfe = rmfe)
+				vec_results.append(parameters.optimal_cost())
+
+				# if VERY_VERBOSE_FLAG
+				print_verbose_cost("\nOptimised {:s} with {:s} soundness, n = {:2d}".format(scheme, snd_type, n), \
+					vec_results[-1])
+				print_separator(very_verbose = True)
+
+			# store the results
+			print_verbose_message("End of optimised {:s} tests, rmfe = {}".format(scheme, rmfe))
+			print_separator(verbose = True)
+			out.append(["optimised rmfe {:3d} {:3d}".format(*rmfe)] + vec_results)
+
+	finally:
+		# write to csv file
+		with open(filename, "w") as file:
+			vec_to_csv(file, out)
 
 def general_test(scheme, dim_min, dim_max, fd, sp, rmfe_iter, snd_type):
 	# General test suite. Return all the parameters found during the optimisations process
@@ -1490,6 +1492,7 @@ class parser_input:
 			sys.exit(0)
 
 	def complete(self):
+
 		# set rmfe
 		if self.rmfe_iter == None:
 			if self.scheme == "aurora":
@@ -1497,9 +1500,10 @@ class parser_input:
 			elif self.scheme == "ligero":
 				self.rmfe_iter = [(48, 160)]
 
-		# set fd
-		if self.scheme == "aurora":
-			self.fd = 192
+		# set fd for those scheme that needs it
+		if self.fd == None:
+			if self.scheme == "aurora":
+				self.fd = 192
 
 		# set filename
 		if self.filename == None:
@@ -1509,6 +1513,9 @@ class parser_input:
 			else:
 				self.filename = "{:s}_{:s}_sp_{:d}_multi-rmfe".\
 					format(self.scheme, self.snd_type, self.sp)
+
+		# add the directory	
+		self.filename = self.dirname + self.filename
 
 	def run(self):
 		# test execution
