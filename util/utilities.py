@@ -96,8 +96,8 @@ def print_separator(length = 36, indentation_length = 2, verbose = False, very_v
 	very_verbose 		: if True check the cst.VERY_VERBOSE_FLAG
 	'''
 
-	if (very_verbose and cst.VERY_VERBOSE_FLAG) 
-			or (verbose and cst.VERBOSE_FLAG):
+	if (very_verbose and cst.VERY_VERBOSE_FLAG) or (verbose 
+		and cst.VERBOSE_FLAG):
 
 		# print line
 		print("\n" + " "*indentation_length + "="*length + "\n")
