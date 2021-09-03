@@ -58,22 +58,31 @@ def print_message(string):
 		print(string)
 
 def print_verbose_message(string):
+	'''print a message if the VERY_VERBOSE_FLAG is true
+	string	: input message
+	'''
+
 	if cst.VERY_VERBOSE_FLAG and cst.VERBOSE_FLAG:
 		print(string)
 
 def print_separator(length = 36, indentation_length = 2, verbose = False, very_verbose = False):
-	# print a line to separate data
-	#  length 				: number of caracter printed
-	#  indentation_length 	: number of spaces before the line
-	#  very_verbose 		: if True check the cst.VERY_VERBOSE_FLAG
-	if (very_verbose and cst.VERY_VERBOSE_FLAG) or (verbose and cst.VERBOSE_FLAG):
+	'''print a line to separate data
+	length 				: number of caracter printed
+	indentation_length 	: number of spaces before the line
+	very_verbose 		: if True check the cst.VERY_VERBOSE_FLAG
+	'''
+
+	if (very_verbose and cst.VERY_VERBOSE_FLAG) 
+			or (verbose and cst.VERBOSE_FLAG):
+
+		# print line
 		print("\n" + " "*indentation_length + "="*length + "\n")
 
 def vec_to_csv(file, vec):
-	# Given a list of list, print each list as a csv column in file
-	#
-	# file 	: file object, already opened
-	# vec 	: list of list of the same length
+	'''Given a list of list, print each list as a csv column in file
+	file 	: file object, already opened
+	vec 	: list of list of the same length
+	'''
 
 	# debug
 	assert len( {len(col) for col in vec} ) <= 1, "Writing columns of different length in csv"
@@ -83,15 +92,21 @@ def vec_to_csv(file, vec):
 		file.write(",".join([repr(a[i]) for a in vec]) + "\n")
 
 def str_bold(s):
-	# print bold text, need the terminal to support ANSI
+	'''print bold text, need the terminal to support ANSI formatting
+	'''
+
 	return "\033[1m{:s}\033[0m".format(s)
 
 def str_underline(s):
-	# print underlined text, need the terminal to support ANSI
+	'''print underlined text, need the terminal to support ANSI formatting
+	'''
+
 	return "\033[4m{:s}\033[0m".format(s)
 
 def str_synopsis():
-	# message returned for ill formed input
+	'''Return the signature of the main programm upon receiving ill formed input
+	'''
+
 	out  = ""
 	out += str_bold("SYNOPSIS: ") + "{}\n".format(sys.argv[0])
 	out += "\t[-l] [-tl] [-a] [-ta] [-sp {arg}] [-ld {arg}] [-hd {arg}]\n"
@@ -103,7 +118,9 @@ def str_synopsis():
 	return out
 
 def str_help():
-	# message returned with the -help option
+	'''Return the message printed with the -help flag in any position
+	'''
+
 	out  = ""
 	out += str_bold("Parameter optimiser for Aurora [EC:BCRSVW19] and Ligero [CCS:AHIV17]\n\n")
 	out += str_synopsis()
@@ -175,9 +192,11 @@ def str_help():
 	return out
 
 def str_input(s = ""):
-	# prompt the user with s and reads the input on the stdin
-	#  defined to be compatible with both python 2 and 3
-	#	
+	'''Prompt the user with s and reads the input on the stdin
+	
+	Compatible with both python 2 and 3
+	'''
+	
 	if sys.version_info.major == 2:
 		return raw_input(s)
 	else:
