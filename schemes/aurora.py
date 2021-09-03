@@ -29,7 +29,7 @@ class aurora_parameters:
 			#  x^2 - x for each variable). All is rounded up to the closest
 			#  power of 2
 			self.variables = ceilpow2(n)			
-			self.constraints = ceilpow2(m)
+			self.constraints = ceilpow2(m+n)
 
 		elif self.protocol_type == "optimised":
 			#set the parameters for our optimised version
