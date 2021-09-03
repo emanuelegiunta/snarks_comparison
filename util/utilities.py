@@ -57,6 +57,21 @@ def xor(a, b):
 
 	return (a or b) and not (a and b)
 
+def _ceil_decorator(fun):
+	'''ceil decorator - redefine ceil as math.ceil if the latter follows the
+	type signature
+
+	ceil(n: Union[int, float]) -> int
+	'''
+	if isinstance(math.ceil(.0), int):
+		return math.ceil 
+	else:
+		return fun
+
+@_ceil_decorator
+def ceil(n):
+	return int(math.ceil(n))
+
 def ceilpow2(n):
 	''' return the smaller integer greater than n that is a power of 2
 	
