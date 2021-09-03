@@ -25,17 +25,19 @@ class aurora_parameters:
 		if self.protocol_type == "standard":
 			#set the standard parameters for standard AURORA
 			self.RMFE = None
-			self.variables = n 			# input gates stays constant
-			self.constraints = m*2		# the number of constraints is doubled if using x^2 - x
-		
+			# var = n, con = m + n (for boolean circuit we need to add
+			#  x^2 - x for each variable). All is rounded up to the closest
+			#  power of 2
+			self.variables = ceilpow2(n)			
+			self.constraints = ceilpow2(m)
+
 		elif self.protocol_type == "optimised":
 			#set the parameters for our optimised version
-			self.RMFE = rmfe[0]												# rmfe = (RMFE, field_dim)
-			self.field_dim = rmfe[1]										#  ...
-			self.variables = 2**math.ceil(np.log2( float(n)/self.RMFE ))	# n' = n/k approximated to
-			self.variables = int(self.variables)							#  the smallest pow of 2
-			self.constraints = 2**math.ceil(np.log2( float(m)/self.RMFE ))	# m' = m/k approximated to
-			self.constraints = int(self.constraints)						#  the smallest pow of 2
+			self.RMFE, self.field_dim = rmfe
+			# var = n/k, con = m/k. All is rounded up to the closes power of 2
+			self.variables = ceilpow2(n/self.RMFE)
+			self.constraints = ceilpow2(m/self.RMFE)
+
 
 		self.fri_parameters = fri_parameters(\
 			self.variables,					# Variable number (n)					\
