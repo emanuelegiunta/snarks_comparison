@@ -8,14 +8,26 @@ from util.utilities import *
 # - - - - - - - - - - - - - - - - - #
 
 class fri_parameters:
-	def __init__(self, n, m, fd, isp, qsp, h, snd_type = "proven", 
+	def __init__(self, d_sigma, d_rho, fd, isp, qsp, h, snd_type = "proven",
 		other_oracles = None):
+		'''
+		d_sigma 	: a function that on input the query bound b returns the 
+						maximum degree tested (n * sigma)
+		d_rho 		: a function that on input the quey bound b return the
+						maxium constrain degree tested (n * rho)
+		fd 			: field dimension
+		isp 		: interactive soundness error
+		qsp 		: query soundness error
+		h 			: hash size [passed to BCS]
+		snd_type 	: ["proven", "heuristic"]
+		other_oracles : ???
+		'''
 
 		if other_oracles is None:
 			other_oracles = []
 
-		self.variables = n
-		self.constraints = m
+		self.max_deg_sigma = d_sigma
+		self.max_deg_rho = d_rho
 		self.field_dim = fd
 		self.field_size = 2**fd #redundant
 		self.hash_size = h
@@ -25,7 +37,6 @@ class fri_parameters:
 
 		self.domain_dim = None
 		self.domain_size = None	#redundant
-		self.rate = None
 		self.query_bound = None
 		self.query_repetition = None 
 		self.localization_number = None
@@ -66,7 +77,7 @@ class fri_parameters:
 		out += "interactive soundness:\t%d\n" % self.interactive_soundness_error
 
 		out += "RS block lenght:\t%s\n" % str(self.domain_dim)
-		out += "RS code rate:\t\t%s\n" % str(self.rate)
+		out += "RS code rate:\t\t%s\n" % str(self.rate_sigma)
 		out += "queries bound:\t\t%s\n" % str(self.query_bound)
 		out += "queries repetitions:\t%s\n" % str(self.query_repetition)
 		out += "localization number:\t%s\n" % str(self.localization_number)
@@ -141,39 +152,59 @@ class fri_parameters:
 		# update the domain size
 		self.domain_size = 2**self.domain_dim
 
-		# set the rate of the RS code (hard-coded Aurora's parameters...)
-		self.rate = (2*max(self.variables, self.constraints) + 2*self.query_bound)/(2.0**self.domain_dim)
+		# compute the rates 
+		self.rate_sigma = (self.max_deg_sigma(self.query_bound) 
+			/ 2**self.domain_dim)
+		self.rate_rho = (self.max_deg_rho(self.query_bound) 
+			/ 2**self.domain_dim)
 		
 		if self.snd_type == "proven":
 			# relative distance tested, hard-coded as a function of the rate
-			self.relative_distance = min( (1 - 2*self.rate)/2.0, (1 - self.rate)/3.0 )
+			#  See Aurora's paper, Theorem 8.1 for reference
+			self.relative_distance = min(
+				(1 - 2*self.rate_sigma)/2.0, 
+				(1 - self.rate_sigma)/3.0,
+				(1 - self.rate_rho))
 
 		elif self.snd_type == "heuristic":
-			# See libiop, ldt_reducer, lines 39-42. In this case since the test is ZK
-			# max tested rate equals the rate
-			self.relative_distance = 1 - self.rate
+			# See libiop, ldt_reducer, lines 39-42. There the heuristic bound
+			#  used is 
+			#  
+			#	delta = min(1 - rate_sigma, 1 - rate_rho)
+			#  
+			#  (actually they now perform this step times domain_dim)
+			#  however rate_sigma <= rate_rho almost by definition
+			self.relative_distance = 1 - self.rate_rho
 
-		# other term in the FRI soundness
-		#		d_0 = (1 - 3rho - 2^eta/v)/4 
-		# where rho is the rate, eta the localization parameter and v is
-		# the domain size
-		d_0 = (1.0 - 3.0*self.rate - (2.0**self.localization_number)/(self.domain_size**(0.5)))/4.0
-
+		# Compute the query repetition
 		if self.snd_type == "proven":
-			# set the query repetition as the lowest number that achieve the right soundness.
-			# soundness is derived from BBHR18. If for the current parameter the soundness bound is
-			# 1 or greater we set query_repetition to infinity
+			# Other term in the FRI soundness
+			#
+			# 	d_0 = (1 - 3rho - 2^eta/v)/4 
+			#
+			#  where rho is the RS-rate tested, eta the localization parameter
+			#  and v is the domain size
+			d_0 = (1.0 - 3.0*self.rate_sigma
+			- (2.0**self.localization_number)/(self.domain_size**0.5))/4.0
+
+			# Set the query repetition as the lowest number that achieve the
+			#  right soundness. This is derived from BBHR18. 
+			#  If for the current parameter the soundness bound is 1 or greater
+			#  we set query_repetition to infinity
+			#
 			if d_0 <= 0:
 				self.query_repetition = float('inf')
 			else:
-				self.query_repetition = -(self.query_soundness_error)/(np.log2(1 - min(self.relative_distance, d_0)))			
+				self.query_repetition = (-self.query_soundness_error
+					/ (np.log2(1 - min(self.relative_distance, d_0))))		
 				self.query_repetition = int(math.ceil(self.query_repetition))
 		
 		elif self.snd_type == "heuristic":
 			# set the query repetition as the lowest number that achieve the right heuristic soundness
 			# that is (1 - d)^l where d is the relative distance and l is the number of query repetitions.
 			# remark that this is always smaller than 1
-			self.query_repetition = -self.query_soundness_error / np.log2( 1 - self.relative_distance )
+			self.query_repetition = (-self.query_soundness_error 
+				/ np.log2(1 - self.relative_distance))
 			self.query_repetition = int(math.ceil(self.query_repetition))
 
 	def base_values_from_query_bound(self):
@@ -187,26 +218,28 @@ class fri_parameters:
 		if self.query_bound == None:
 			raise CompatibilityError("Unable to Reset FRI parameters, query bound set to None")
 		else:
-			# v > 4 max(n,m) + 4 b because rho > 1/2, otherwise the minimum distance is a negative value
-			# with v the domain size, n the number of variables, m the number of constraints, b the queries
-			# bound, rho the rate.
-			domain_dim = np.log2(4*max(self.variables, self.constraints) + 4*self.query_bound + 1)
-			domain_dim = int(math.ceil(domain_dim))
-
+			# domain_dim > 2 max_tested_deg because rho > 1/2, otherwise the 
+			# proximity parameter is a negative value
+			domain_dim = ceil(np.log2(
+				2*self.max_deg_sigma(self.query_bound) + 1))
 			localization_number = 1
+
 			return(domain_dim, localization_number)
 
 	def estimate_cost(self, estimate = True, very_verbose = False):
 		# - - - - - debug - - - - - #
-		assert self.check_empty_entries(exclude = True) == None, "FRI, missing required variables"
+		assert self.check_empty_entries(exclude = True) is None, "FRI, missing required variables"
 		# - - - - end of debug - - - - #
 
-		#maximum numer of rounds (BBHR18), recall that rate < 1
-		rounds = (self.domain_dim + np.log2(self.rate))/ self.localization_number
-		rounds = int(math.ceil(rounds))
+		# maximum numer of rounds [BBHR18], recall that rate < 1
+		#  r = (v - R)/eta
+		#  with v the domain dimension, R = log2(tested_rate) and eta is the
+		#  localisation parameter 
+		rounds = ceil((self.domain_dim - np.log2(self.rate_sigma))
+			/ self.localization_number)
 
-		# We initialise the alphabet size, the oracle lenght and query complexity
-		# adding at first the masking term. I has
+		# We initialise the alphabet size, the oracle lenght and query
+		#  complexity adding at first the masking term. It has
 		#	alphabet_size 	= |F| 2^\eta
 		#	oracle_length 	= |L| / 2^\eta
 		#	queries 		= l
@@ -229,7 +262,7 @@ class fri_parameters:
 			#OPTIMISATION:
 			#	if the ratio Q/N is higher than rho then it's more efficient to just
 			#	send the polynomial. In that case we truncate FRI recursion
-			if estimated_queries/float(N) > self.rate:
+			if estimated_queries/float(N) > self.rate_sigma:
 				rounds = i
 				break
 
@@ -260,7 +293,7 @@ class fri_parameters:
 		last_domain_size = self.domain_size / 2**(self.localization_number * rounds)
 		
 		# Cost of the last, direct LDT, done by sending all the coefficient of the polynomial
-		direct_ldt_costs = self.field_dim * self.rate * last_domain_size
+		direct_ldt_costs = self.field_dim * self.rate_sigma * last_domain_size
 
 		return bsc_cost + direct_ldt_costs
 
@@ -271,28 +304,31 @@ class fri_parameters:
 
 	def optimize(self):
 		# idea taken from libiop: we set the query bound to 0 and keep runnning
-		#  the optimizer until the query bound is smaller than the 
-		#  query repetitions 
+		#  the optimizer until the query bound is smaller than the query
+		#  repetitions 
 	
 		self.query_bound = 0
 		tuple_out = None 			# Best triplet of parameters (q, eta, bv)
 		cost_out = float('inf') 	# current best cost
 		cost_tmp = float('inf') 	# current cost
 		
-		#to avoid repetitions we exclude already tested values
+		# To avoid repetitions we exclude already tested values
 		tested_list = []
 
-		while(True): #Emulate a do-while to find the best condition
+		while(True): # Emulate a do-while to find the best condition
 			
-			#set the minimum possible values for eta and bv
-			domain_dim_0, localization_number_0 = self.base_values_from_query_bound() 
+			# Set the minimum possible values for eta and bv
+			dom_dim_0, loc_num_0 = self.base_values_from_query_bound() 
 			exit_flag = True
 
-			# we fix an arbitrary bound on the domain dimension to keep the computation
-			# under controll.
-			for self.domain_dim in range(domain_dim_0, domain_dim_0 + FRI_MAX_DOMAIN_DIM + 1):
-				# we make the loc. number run up to a fixed bound 
-				for self.localization_number in range(localization_number_0, FRI_MAX_LOCALIZATION_NUM + 1):
+			# e fix an arbitrary bound on the domain dimension to keep the
+			#  computation under controll.
+			for self.domain_dim in range(dom_dim_0, dom_dim_0 
+				+ FRI_MAX_DOMAIN_DIM + 1):
+
+				# we make the localization number run up to a fixed bound 
+				for self.localization_number in range(loc_num_0,
+					FRI_MAX_LOCALIZATION_NUM + 1):
 
 					# we compute the remaining parameters
 					self.complete()
@@ -300,7 +336,8 @@ class fri_parameters:
 					if self.query_repetition != float('inf') and \
 					   (self.domain_dim, self.localization_number) not in tested_list:
 
-						# if the query bound is not smaller than the number of queries made to the base oracle:
+						# if the query bound is not smaller than the number of 
+						#  queries made to the base oracle:
 						if self.query_bound >= self.query_repetition * 2**self.localization_number:
 							
 							tested_list.append((self.domain_dim, self.localization_number))

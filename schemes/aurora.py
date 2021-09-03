@@ -39,13 +39,16 @@ class aurora_parameters:
 			self.constraints = ceilpow2(m/self.RMFE)
 
 
+		sigma = lambda q : 2*max(self.variables, self.constraints) + 2*q
+		rho = lambda q : 2*max(self.variables, self.constraints) + 2*q
+
 		self.fri_parameters = fri_parameters(\
-			self.variables,					# Variable number (n)					\
-			self.constraints,				# Constraints number (m)				\
-			self.field_dim,					# Field dimension (fd)					\
-			self.security_parameter + 3,	# Interactive Soundness Error (isp)		\
-			self.security_parameter + 1, 	# Query Soundness Error (qsp)			\
-			self.security_parameter*2, 		# Hash size (h)							\
+			sigma,							# Variable number (n)
+			rho,							# Constraints number (m)
+			self.field_dim,					# Field dimension (fd)
+			self.security_parameter + 3,	# Interactive Soundness Error (isp)
+			self.security_parameter + 1, 	# Query Soundness Error (qsp)
+			self.security_parameter*2, 		# Hash size (h)	
 			snd_type = snd_type, other_oracles = self.oracles_number())
 
 	def __str__(self):
