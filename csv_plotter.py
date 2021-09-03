@@ -73,7 +73,7 @@ def csv_plot(file_name, ax):
 	_csv_plot(vec, ax)
 
 	ax.set_ylim(ymin = 0)
-	ax.set_xscale('log', basex = 2)
+	ax.set_xscale('log', base = 2)
 	ax.title.set_text(file_name)
 
 if __name__ == "__main__":
@@ -94,4 +94,8 @@ if __name__ == "__main__":
 			# arguments we need are from 1 to n
 			csv_plot(sys.argv[i+1], ax)
 
-		plt.show(fig)
+		#plt.show(fig)
+		# TEST
+		fig.show()
+
+		plt.show()
