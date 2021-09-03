@@ -1,5 +1,6 @@
 import numpy as np
 import numpy.random as rnd
+import itertools as it
 
 # constants used by BSC
 MKT_ITER = 1				# recommended 1000	

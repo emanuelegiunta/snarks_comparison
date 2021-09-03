@@ -49,7 +49,9 @@ class aurora_parameters:
 			self.security_parameter + 3,	# Interactive Soundness Error (isp)
 			self.security_parameter + 1, 	# Query Soundness Error (qsp)
 			self.security_parameter*2, 		# Hash size (h)	
-			snd_type = snd_type, other_oracles = self.oracles_number())
+			snd_type = snd_type,			# Soundness type
+			zk = True,						# Zero-Knowledge flag
+			other_oracles = self.oracles_number())
 
 	def __str__(self):
 		return str(self.fri_parameters)

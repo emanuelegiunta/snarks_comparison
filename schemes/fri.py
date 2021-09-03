@@ -8,8 +8,8 @@ from util.utilities import *
 # - - - - - - - - - - - - - - - - - #
 
 class fri_parameters:
-	def __init__(self, d_sigma, d_rho, fd, isp, qsp, h, snd_type = "proven",
-		other_oracles = None):
+	def __init__(self, d_sigma, d_rho, fd, isp, qsp, h, snd_type="proven",
+		zk=True, other_oracles=None):
 		'''
 		d_sigma 	: a function that on input the query bound b returns the 
 						maximum degree tested (n * sigma)
@@ -20,6 +20,7 @@ class fri_parameters:
 		qsp 		: query soundness error
 		h 			: hash size [passed to BCS]
 		snd_type 	: ["proven", "heuristic"]
+		zk			: If true measure the zero knowledge version
 		other_oracles : ???
 		'''
 
@@ -31,6 +32,7 @@ class fri_parameters:
 		self.field_dim = fd
 		self.field_size = 2**fd #redundant
 		self.hash_size = h
+		self.zero_knowledge = zk
 
 		self.query_soundness_error = qsp		
 		self.interactive_soundness_error = isp	# Note: currently the isp is ignored
@@ -68,15 +70,15 @@ class fri_parameters:
 	def __str__(self):
 		out = "\n- - - - FRI pramaters - - - -\n"
 
-		out += "variables:\t\t%d\n" % self.variables
-		out += "constraints:\t\t%d\n" % self.constraints
+		#out += "variables:\t\t%d\n" % self.variables
+		#out += "constraints:\t\t%d\n" % self.constraints
 		out += "field dimension:\t%d\n" % self.field_dim
 		out += "hash output size:\t%d\n" % self.hash_size
 		
 		out += "query soundness:\t%d\n" % self.query_soundness_error
 		out += "interactive soundness:\t%d\n" % self.interactive_soundness_error
 
-		out += "RS block lenght:\t%s\n" % str(self.domain_dim)
+		out += "RS dimension:\t\t%s\n" % str(self.domain_dim)
 		out += "RS code rate:\t\t%s\n" % str(self.rate_sigma)
 		out += "queries bound:\t\t%s\n" % str(self.query_bound)
 		out += "queries repetitions:\t%s\n" % str(self.query_repetition)
@@ -152,14 +154,14 @@ class fri_parameters:
 		# update the domain size
 		self.domain_size = 2**self.domain_dim
 
-		# compute the rates 
+		# Compute the rates 
 		self.rate_sigma = (self.max_deg_sigma(self.query_bound) 
 			/ 2**self.domain_dim)
 		self.rate_rho = (self.max_deg_rho(self.query_bound) 
 			/ 2**self.domain_dim)
 		
 		if self.snd_type == "proven":
-			# relative distance tested, hard-coded as a function of the rate
+			# Relative distance tested, hard-coded as a function of the rate
 			#  See Aurora's paper, Theorem 8.1 for reference
 			self.relative_distance = min(
 				(1 - 2*self.rate_sigma)/2.0, 
@@ -211,11 +213,11 @@ class fri_parameters:
 		# Helper for optimize. Set all the independent parameters (beside the query bound) to the minimum value
 
 		# - - - - - debug - - - - - #
-		assert self.check_empty_entries(var = ["variables", "constraints", "query_bound"]) == None, \
+		assert self.check_empty_entries(var = ["variables", "constraints", "query_bound"]) is None, \
 			"FRI, missing required variable"
 		# - - - - end of debug - - - - #		
 
-		if self.query_bound == None:
+		if self.query_bound is None:
 			raise CompatibilityError("Unable to Reset FRI parameters, query bound set to None")
 		else:
 			# domain_dim > 2 max_tested_deg because rho > 1/2, otherwise the 
@@ -306,8 +308,9 @@ class fri_parameters:
 		# idea taken from libiop: we set the query bound to 0 and keep runnning
 		#  the optimizer until the query bound is smaller than the query
 		#  repetitions 
-	
+		
 		self.query_bound = 0
+
 		tuple_out = None 			# Best triplet of parameters (q, eta, bv)
 		cost_out = float('inf') 	# current best cost
 		cost_tmp = float('inf') 	# current cost
@@ -317,45 +320,57 @@ class fri_parameters:
 
 		while(True): # Emulate a do-while to find the best condition
 			
-			# Set the minimum possible values for eta and bv
+			# Set the minimum initial values for bv = dom_dim_0, eta = loc_num_0
 			dom_dim_0, loc_num_0 = self.base_values_from_query_bound() 
 			exit_flag = True
 
 			# e fix an arbitrary bound on the domain dimension to keep the
 			#  computation under controll.
-			for self.domain_dim in range(dom_dim_0, dom_dim_0 
-				+ FRI_MAX_DOMAIN_DIM + 1):
+			for d, eta in it.product(
+				range(dom_dim_0, dom_dim_0 + FRI_MAX_DOMAIN_DIM + 1),
+				range(loc_num_0, FRI_MAX_DOMAIN_DIM + 1)):
 
-				# we make the localization number run up to a fixed bound 
-				for self.localization_number in range(loc_num_0,
-					FRI_MAX_LOCALIZATION_NUM + 1):
+				self.domain_dim = d
+				self.localization_number = eta
+				
+				self.complete()
 
-					# we compute the remaining parameters
-					self.complete()
+				# Exclude invalid or already tested value
+				if (self.query_repetition == float('inf') 
+					or (d, eta) in tested_list ):
 
-					if self.query_repetition != float('inf') and \
-					   (self.domain_dim, self.localization_number) not in tested_list:
+					continue
 
-						# if the query bound is not smaller than the number of 
-						#  queries made to the base oracle:
-						if self.query_bound >= self.query_repetition * 2**self.localization_number:
-							
-							tested_list.append((self.domain_dim, self.localization_number))
+				# Evaluate the given tuple if:
+				# - the allowed query number is >= than the number of queries
+				#   made to the base oracle
+				#
+				# - we are not tackling zero-knowledge
+				#
+				if (self.query_bound >= 
+					self.query_repetition * 2**self.localization_number
+					or not self.zero_knowledge):
+					
+					tested_list.append((
+						self.domain_dim, 
+						self.localization_number))
 
-							cost_tmp = self.estimate_cost()
-							if cost_tmp < cost_out:
-								cost_out = cost_tmp
-								tuple_out = (self.query_bound, self.domain_dim, self.localization_number)
-							
-							print_verbose_message("\tTrying (b, dim L, eta) = ({:d}, {:d}, {:1d})".format(
-									self.query_bound, self.domain_dim, self.localization_number))
-							print_verbose_cost("\tFinal proof size", cost_tmp)
-							print_verbose_message("")
+					cost_tmp = self.estimate_cost()
+					if cost_tmp < cost_out:
+						cost_out = cost_tmp
+						tuple_out = (self.query_bound, self.domain_dim, self.localization_number)
+					
+					print_verbose_message(
+						"\tTrying (b, dim L, eta) = ({:d}, {:d}, {:1d})"
+						.format(self.query_bound, self.domain_dim, 
+						self.localization_number))
+					print_verbose_cost("\tFinal proof size", cost_tmp)
+					print_verbose_message("")
 
-						else:
-							exit_flag = False 
-							# there is still some couple (dimL, eta) not captured by the
-							#  current estimated queries bound
+				else:
+					exit_flag = False 
+					# there is still some couple (dimL, eta) not captured by the
+					#  current estimated queries bound
 
 			# Exit condition:
 			# When he manages to match the query bound from the given query_repetitions
