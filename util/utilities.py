@@ -28,22 +28,46 @@ class InputError(Exception):
 # - - - - - - - - - - - - - - - - - - - #
 
 def comb(n,m):
-	#binomial coefficient
+	'''binomial coefficient of n, m
+
+	i.e. n! / ((n - m)! * m!)
+	'''
 	out = 1
 	for i in range(m):
 		out *= (n - i)/float(m - i)
 	return out
 
 def combr(n, m, k):
-	#ratio of comb(n,k)/comb(m,k)
+	'''ratio of comb(n,k)/comb(m,k)
+
+	Note that it is faster and safer to run combr(m,k) instead of evaluating 
+	both numerator and denominator, as they grow exponentially in k
+	'''
 	out = 1
 	for i in range(int(k)):
 		out *= (n - i)/float(m - i)
 	return out
 
 def xor(a, b):
-	# xor operator
+	''' xor operator
+
+	if a and b are functions' outputs, those functions are evaluated exactly
+	once
+	'''
+
 	return (a or b) and not (a and b)
+
+def ceilpow2(n):
+	''' return the smaller integer greater than n that is a power of 2
+	
+	Note: a quick implementation instead of an efficient one is currently used
+	'''
+
+	return 2**int(math.ceil(np.log2(n)))
+
+# - - - - - - - - - - - - - - - - - - - - - #
+#	String formatting and message handling	#
+# - - - - - - - - - - - - - - - - - - - - - #
 
 def print_cost(name, bit_cost):
 	if cst.VERBOSE_FLAG:
