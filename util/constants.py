@@ -1,0 +1,2 @@
+VERBOSE_FLAG = False
+VERY_VERBOSE_FLAG = False
