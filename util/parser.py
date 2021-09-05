@@ -74,8 +74,11 @@ class parser_input:
 		#
 		# -l 	--ligero 				Runs a comparison for Ligero
 		# -a 	--aurora 				Runs a comparison for Aurora
+		# -lpp	--ligero++				Runs a comparison for Ligero++
+		#
 		# -tl   --test_ligero			Runs a test for Ligero
 		# -ta 	--test_aurora 			Runs a test for Aurora
+		# -tlpp --test_ligero++			Runs a test for Ligero++
 		#
 		# -sp 	--security_parameter	Set the security parameter (1 arg)
 		# -ld 	--lowest_dimension		Set the minimum dimension tested, inclusive (1 arg)
@@ -109,6 +112,10 @@ class parser_input:
 					self.test_type = "compare"
 					self.scheme = "aurora"
 
+				elif key in ["-lpp", "--ligero++"]:
+					self.test_type = "compare"
+					self.scheme = "ligero++"
+
 				elif key in ["-tl", "--test_ligero"]:
 					self.test_type = "test"
 					self.scheme = "ligero"
@@ -117,6 +124,11 @@ class parser_input:
 				elif key in ["-ta", "--test_aurora"]:
 					self.test_type = "test"
 					self.scheme = "aurora"
+					cst.VERBOSE_FLAG = True
+
+				elif key in ["-tlpp", "--test_ligero++"]:
+					self.test_type = "test"
+					self.scheme = "ligero++"
 					cst.VERBOSE_FLAG = True
 
 				elif key in ["-sp", "--security_parameter"]:
@@ -180,11 +192,21 @@ class parser_input:
 				self.rmfe_iter = [(48, 198)]
 			elif self.scheme == "ligero":
 				self.rmfe_iter = [(48, 160)]
+			elif self.scheme == "ligero++":
+				self.rmfe_iter = [(48, 160)]
+			else:
+				raise ValueError("unknown scheme requested")
 
 		# set fd for those scheme that needs it
 		if self.fd == None:
 			if self.scheme == "aurora":
 				self.fd = 192
+			elif self.scheme == "ligero":
+				pass
+			elif self.scheme == "ligero++":
+				self.fd = 128
+			else:
+				raise ValueError("unknown scheme requested")
 
 		# set filename
 		if self.filename == None:

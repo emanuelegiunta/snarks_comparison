@@ -25,6 +25,8 @@ def _parameters_class(scheme):
 		return sch.ligero_parameters
 	elif scheme == "aurora":
 		return sch.aurora_parameters
+	elif scheme == "ligero++":
+		return sch.ligeropp_parameters
 	else:
 		# debug
 		assert False, "Requested unkown parameters class"
