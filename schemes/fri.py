@@ -37,6 +37,8 @@ class fri_parameters:
 		self.query_soundness_error = qsp		
 		self.interactive_soundness_error = isp	# Note: currently the isp is ignored
 
+		self.rate_sigma = None
+		self.rate_rho = None
 		self.domain_dim = None
 		self.domain_size = None	#redundant
 		self.query_bound = None
@@ -115,6 +117,7 @@ class fri_parameters:
 		assert self.check_empty_entries(var = ["field_dim", "localization_number", "other_oracles"]) == None, \
 			"FRI, missing required variable"
 		# - - - - end of debug - - - - #
+
 		return [int(math.ceil( n * self.field_dim * (2.0**self.localization_number) )) for n in self.other_oracles]
 
 	def coset_hash_length(self):
@@ -230,7 +233,8 @@ class fri_parameters:
 
 	def estimate_cost(self, estimate = True, very_verbose = False):
 		# - - - - - debug - - - - - #
-		assert self.check_empty_entries(exclude = True) is None, "FRI, missing required variables"
+		assert self.check_empty_entries(exclude = True) is None, "FRI, missing required variables, missing {}, {}".format(
+			self.check_empty_entries(exclude = True), self)
 		# - - - - end of debug - - - - #
 
 		# maximum numer of rounds [BBHR18], recall that rate < 1
@@ -328,7 +332,7 @@ class fri_parameters:
 			#  computation under controll.
 			for d, eta in it.product(
 				range(dom_dim_0, dom_dim_0 + FRI_MAX_DOMAIN_DIM + 1),
-				range(loc_num_0, FRI_MAX_DOMAIN_DIM + 1)):
+				range(loc_num_0, FRI_MAX_LOCALIZATION_NUM + 1)):
 
 				self.domain_dim = d
 				self.localization_number = eta
