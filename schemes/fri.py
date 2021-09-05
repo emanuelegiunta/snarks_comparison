@@ -21,7 +21,7 @@ class fri_parameters:
 		h 			: hash size [passed to BCS]
 		snd_type 	: ["proven", "heuristic"]
 		zk			: If true measure the zero knowledge version
-		other_oracles : ???
+		other_oracles : numer of oracles sent before the low degree test occurs
 		'''
 
 		if other_oracles is None:
