@@ -80,6 +80,35 @@ def ceilpow2(n):
 
 	return 2**int(math.ceil(np.log2(n)))
 
+def binsearch(f, x_min, upper_bound = None):
+	'''return the minimum x such that f(x) is True
+	f 		: a boolean valued function. For the bisection to make sense, f
+			: should be "monotone" in {False, True}
+	x_min 	: minimum value of x. we assume x_min > 0
+	'''
+
+	if upper_bound is None:
+		upper_bound = float('inf')
+
+	# Find an upper bound
+	x_max = 2*x_min
+
+	while not f(x_max):
+		# abort if no solution lies in the given range
+		if x_max > upper_bound:
+			return float('inf')
+
+		x_max *= 2
+
+	# next we run the binary search to minimize f
+	while(x_max - x_min > 1):
+		if f((x_min + x_max)//2) :
+			x_max = (x_min + x_max)//2
+		else:
+			x_min = (x_min + x_max)//2
+
+	return x_max
+
 # - - - - - - - - - - - - - - - - - - - - - #
 #	String formatting and message handling	#
 # - - - - - - - - - - - - - - - - - - - - - #
