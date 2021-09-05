@@ -204,7 +204,7 @@ class parser_input:
 			elif self.scheme == "ligero":
 				pass
 			elif self.scheme == "ligero++":
-				self.fd = 128
+				self.fd = 160
 			else:
 				raise ValueError("unknown scheme requested")
 

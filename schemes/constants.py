@@ -12,7 +12,7 @@ LGR_MAX_SAMPLE = 150			# recommended 150
 LGR_MAX_DOMAIN_DIM = 6			# recommended 6
 
 # constants used by FRI
-FRI_ITER = 100					# recommended 1000
+FRI_ITER = 1					# recommended 1000
 FRI_MAX_DOMAIN_DIM = 6			# recommended 6
 FRI_MAX_LOCALIZATION_NUM = 3	# recommended 4
 

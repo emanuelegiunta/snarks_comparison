@@ -37,15 +37,20 @@ class ligeropp_parameters:
 		elif self.protocol_type == "optimised":
 			# Set the parameters for our optimised version
 			#  rmfe = (k, fd)
-			self.RMFE, self.field_dim = rmfe
+			self.rmfe, self.field_dim = rmfe
 
 			# var = n/k, con = m/k
 			self.variables = ceil(n/self.rmfe)
 			self.constraints = ceil(m/self.rmfe)
 
+		# In the paper two version are presented
+		#  "zk-ligero" uses techniques from ligero to achieve zero knowledge
+		#  "zk-IPA" uses a zk low degree test and a zk sumcheck to win
+		self.mode = None
+
 		self.fri_parameters = fri_parameters(
-			lambda q : max(self.factor_m1, 2*self.factor_m2), # deg_sigma
-			lambda q : 2*max(self.factor_m1, self.factor_m2), # deg_rho
+			self._deg_sigma(),
+			self._deg_rho(),
 			self.field_dim,					# Field dimension (fd)
 			self.security_parameter + 3,	# Interactive Soundness Error (isp)
 			self.security_parameter + 1, 	# Query Soundness Error (qsp)
@@ -65,11 +70,6 @@ class ligeropp_parameters:
 		#self.proximity_parameter = None	# e
 		self.queries = None					# t
 
-		# In the paper two version are presented
-		#  "zk-ligero" uses techniques from ligero to achieve zero knowledge
-		#  "zk-IPA" uses a zk low degree test and a zk sumcheck to win
-		self.mode = None
-
 	def __str__(self):
 		out = "\n- - - - L++ pramaters - - - -\n"
 		out += "Variables:\t\t{}\n".format(self.variables)
@@ -80,10 +80,72 @@ class ligeropp_parameters:
 		out += "Factor m1:\t\t{}\n".format(self.factor_m1)
 		out += "Factor m2:\t\t{}\n".format(self.factor_m2)
 		out += "IPAs queried:\t\t{}\n".format(self.queries)
+		out += "Version:\t\t\t{}".format(self.mode)
 
 		out += str(self.fri_parameters)
 
 		return out
+
+	def _deg_sigma(self):
+		'''Internal method
+
+		Returns the sigma max degree as a function of the number of queries
+		'''
+		def sigma(q):
+			if self.protocol_type == "standard":
+				if self.mode == "zk-ligero":
+					return max(self.factor_m1, 2*self.factor_m2)
+
+				elif self.mode == "zk-IPA":
+					return max(
+						self.factor_m1 + q,
+						2*(self.factor_m2 + q))
+
+			elif self.protocol_type == "optimised":
+				if self.mode == "zk-ligero":
+					return max(
+						self.factor_m1,
+						2*self.factor_m2,
+						3*self.security_parameter)
+
+				elif self.mode == "zk-IPA":
+					return max(
+						self.factor_m1 + q,
+						2*self.factor_m2 + 2*q,
+						3*self.security_parameter)
+
+		return sigma
+
+	def _deg_rho(self):
+		'''Internal method
+
+		Returns the rho max degree as a function of the number of queries
+		'''
+		
+		def rho(q):
+			if self.protocol_type == "standard":
+				if self.mode == "zk-ligero":
+					return 2*max(self.factor_m1, self.factor_m2)
+
+				elif self.mode == "zk-IPA":
+					return max(
+						2*self.factor_m1 + 2*q,
+						2*self.factor_m2 + 2*q)
+
+			elif self.protocol_type == "optimised":
+				if self.mode == "zk-ligero":
+					return max(
+						2*self.factor_m1,
+						2*self.factor_m2,
+						3*self.security_parameter)
+
+				elif self.mode == "zk-IPA":
+					return max(
+						2*self.factor_m1 + 2*q,
+						2*self.factor_m2 + 2*q,
+						3*self.security_parameter)
+
+		return rho
 
 	def oracles_number(self):
 		# Number of oracles sent during the protocol. In this case we consider
@@ -106,8 +168,10 @@ class ligeropp_parameters:
 				return [4*self.queries + 1, 1]
 
 		elif self.protocol_type == "optimised":
-			assert False, "Value not yet defined"
-			#return [5*self.queries + 1]
+			if self.mode == "zk-ligero":
+				return [5*self.queries + 1]
+			elif self.mode == "zk-IPA":
+				return [5*self.queries + 1, 1]
 
 	def extra_communication(self):
 		# Ammount of data sent by the prover before the LDT and NOT
@@ -117,15 +181,17 @@ class ligeropp_parameters:
 		#  masking term is chosen to have zero sum. In the optimised version
 		#  this consist of the vectors in the Modular Lincheck
 
+		n = self.domain_size
+		k = self.degree
+		l = self.factor_l
+		fd = self.field_dim
+		sp = self.security_parameter
+
 		if self.protocol_type == "standard":
-			n = self.domain_size
-			k = self.degree
-			l = self.factor_l
-			fd = self.field_dim
 			return fd*(n + 3*(k + l - 1) + (2*k - 1))
 
 		elif self.protocol_type == "optimised":
-			assert False, "Value not yet defined"
+			return fd*(n + 3*(k + l - 1) + (2*k - 1)) + fd*sp
 			#return 2 * self.field_dim * (self.security_parameter + 3)
 
 	def _query_soundness_error(self, n, l, t):
@@ -198,12 +264,6 @@ class ligeropp_parameters:
 		fri_cost = self.fri_parameters.estimate_cost(estimate = estimate)
 		extra_cost = self.extra_communication()
 
-		#DEBUG
-		#print_cost("fri's cost", fri_cost)
-		#print_cost("extra cost", extra_cost)
-		#print("")
-		#DEBUG
-
 		return fri_cost + extra_cost
 
 	def avg_cost(self):
@@ -244,10 +304,10 @@ class ligeropp_parameters:
 				cost_out = cost_tmp
 				tuple_out = (mode, log_n, log_l)
 
-				#DEBUG
-			print_message("\tTested tuple: {}".format((mode, log_n, log_l)))
-			print_cost("\tCost", cost_tmp)
-			print_message("")
+			#DEBUG
+			#print_message("\tTested tuple: {}".format((mode, log_n, log_l)))
+			#print_cost("\tCost", cost_tmp)
+			#print_message("")
 
 			print_verbose_message(
 				"\tTrying (dim L, dim H) = ({:2d}, {:2d})".format(log_n, log_l))
@@ -261,7 +321,7 @@ class ligeropp_parameters:
 	def optimal_cost(self):
 		self.optimize()
 		# DEBUG
-		return self.estimate_cost(estimate = False)
+		return self.avg_cost()
 
 
 
