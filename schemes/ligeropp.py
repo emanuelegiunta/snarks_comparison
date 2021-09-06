@@ -185,13 +185,13 @@ class ligeropp_parameters:
 		k = self.degree
 		l = self.factor_l
 		fd = self.field_dim
-		sp = self.security_parameter
+		sp = self.interactive_soundness_error
 
 		if self.protocol_type == "standard":
 			return fd*(n + 3*(k + l - 1) + (2*k - 1))
 
 		elif self.protocol_type == "optimised":
-			return fd*(n + 3*(k + l - 1) + (2*k - 1)) + fd*sp
+			return fd*(n + 3*(k + l - 1) + (2*k - 1)) + 2*fd*sp
 			#return 2 * self.field_dim * (self.security_parameter + 3)
 
 	def _query_soundness_error(self, n, l, t):
