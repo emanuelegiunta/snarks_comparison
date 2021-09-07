@@ -58,6 +58,29 @@ class ligero_parameters:
 			self.LGR_MIN_L = 1/6.0
 			self.LGR_MAX_L = 2.5
 
+		elif self.protocol_type == "booligero":
+
+			# Variables and constraints are recorded here just for __str__
+			self.variables = n
+			self.constraints = m
+
+			def w0(self):
+				return int(math.floor(self.field_dim**(0.5)))
+
+			def w1(self):
+				return ceil(self.field_dim/self.w0())
+
+			self.w0 = w0
+			self.w1 = w1
+
+			# Overall soundness is the sum of 2 ips and one qsp
+			self.interactive_soundness_error = sp + 2
+			self.query_soundness_error = sp + 1
+
+			# Range in which we look for optimal l
+			self.LGR_MIN_L = 1/10.0
+			self.LGR_MAX_L = 2/3.0
+
 		# Other parameter fixed ahead
 		self.hash_size = 2*sp
 		self.security_parameter = sp 	 					# kappa
@@ -122,8 +145,9 @@ class ligero_parameters:
 		return out
 
 	def find_queries(self):
-		# Returns the number of queries required to have a query soundness
-		#  error smaller that 2^{-qsp}
+		'''Returns the number of queries required to have a query soundness
+		error smaller that 2^{-qsp}
+		'''
 
 		# debug - check that all the required variables are non empty
 		assert self.check_empty_entries(var = ("domain_size", "proximity_parameter", "degree", \
@@ -244,23 +268,34 @@ class ligero_parameters:
 			# LDT :	n 			: a codeword)
 			# Lin : k + l - 1 	: a k + l - 2 degree polynomial
 			# Row : 2k - 1 		: a 2k - 2 degree polynomial
-			out = f * sigma * (n + (k + l - 1) + (2*k - 1))
+			out = f*sigma*(n + (k + l - 1) + (2*k - 1))
 
 		if self.protocol_type == "optimised":
 			# On top of the standard cost for performing LDT, Lin and Row we
 			#  also send 2 vector whose length is roughly the size of the s.p.
-			out = f * sigma * (n + (k + l - 1) + (2*k - 1))
-			out += 2 * f * self.interactive_soundness_error
+			out = f*sigma*(n + (k + l - 1) + (2*k - 1))
+			out += 2*f*self.interactive_soundness_error
+
+		if self.protocol_type == "booligero":
+			# On top of the standard cost for performing LDT, Lin and Row we
+			#  also send 3 vectors to check the patterns of size
+			#  f * (w1 + 1) * sp
+			out = f*sigma*(n + (k + l - 1) + (2*k - 1))
+			out += 3*f*(self.w1() + 1)*self.interactive_soundness_error
 
 		if query_flag:
 			out += self.queries * self.find_alphabet_size(sigma = sigma, f = f)
 
-		return(out)
+		return out
 
 	def find_rounds(self):
 		if self.protocol_type == "standard":
 			return 2
+
 		elif self.protocol_type == "optimised":
+			return 3
+
+		elif self.protocol_type == "booligero":
 			return 3
 
 	def find_alphabet_size(self, sigma = None, f = None):
@@ -271,11 +306,13 @@ class ligero_parameters:
 		provided we set them as the associated values in self
 		'''
 
+		# TODO - remove in the next commit
 		# debug - check for empty entries
 		assert self.check_empty_entries(var = ("protocol_type", "factor_m1", "factor_m2")) == None, \
 			"LIGERO, empty required variable"
 
 		if sigma == None:
+			# TODO - remove in the next commit
 			# debug - check for empty entries
 			assert self.check_empty_entries(var = ("interactive_repetitions")) == None, \
 				"LIGERO, empty required variable"
@@ -283,6 +320,7 @@ class ligero_parameters:
 			sigma = self.interactive_repetitions
 
 		if f == None:
+			# TODO - remove in the next commit
 			# debug - check for empty entries
 			assert self.check_empty_entries(var = ("field_dim")) == None, \
 				"LIGERO, empty required variable"
@@ -291,15 +329,16 @@ class ligero_parameters:
 
 		##
 		if self.protocol_type == "standard":
-			# oracles: w (m1), x, y, z (m2)
-			# masking terms: sigma for 1 LDT, 3 Lin, 1 Row
-			out = (self.factor_m1 + 3*self.factor_m2 + 5 * sigma) * f
+			# Oracles: w (m1), x, y, z (m2)
+			# Masking terms: sigma for 1 LDT, 1 Lin, 1 Row
+			out = (self.factor_m1 + 3*self.factor_m2 + 3*sigma)*f
 
 		elif self.protocol_type == "optimised":
-			# oracles: w (m1), x, y, z, t (m2)
-			# masking terms: sigma for 1 LDT, 3 Lin_h, 1 Row
-			out = (self.factor_m1 + 4*self.factor_m2 + 5 * sigma) * f
+			# Oracles: w (m1), x, y, z, t (m2)
+			# Masking terms: sigma for 1 LDT, 1 Lin_h, 1 Row
+			out = (self.factor_m1 + 4*self.factor_m2 + 3*sigma)*f
 
+			# TODO - remove with the next commit
 			# debug - check for empty entries
 			assert self.check_empty_entries(var = ("interactive_soundness_error", "factor_l")) == None, \
 				"LIGERO, empty required variable"
@@ -307,6 +346,19 @@ class ligero_parameters:
 
 			# masking terms for the modular lincheck
 			out += ceil((3*self.interactive_soundness_error)/self.factor_l)*f
+
+		elif self.protocol_type == "booligero":
+			# Oracles
+			#  Let n = var, m = cont, f = field dimension, sp = security param
+			#
+			#  w 			: n/f 
+			#  x, y, z 		: m/f
+			#  x^, y^, z^	: m/f * w1
+			#  ax, ay, az 	: sp 
+			out = (self.variables//self.field_dim
+				+ 3*self.constraints//self.field_dim
+				+ 3*self.w1()*self.constraints//self.field_dim
+				+ 3*(self.w1() + 1)*f*self.interactive_soundness_error)
 
 		return out
 
@@ -344,8 +396,8 @@ class ligero_parameters:
 		# number of points in the RS domain
 		self.domain_size = 2**self.domain_dim
 
-		# e = floor((n - 2k + 1)/4)
-		# if we assume strong_ligero 4 -> 3
+		# e = floor((n - 2k + 1)/3) with strong Ligero
+		#
 		self.proximity_parameter = (self.domain_size - 2*self.degree + 1)/3.0
 		self.proximity_parameter = int(math.floor(self.proximity_parameter))
 
