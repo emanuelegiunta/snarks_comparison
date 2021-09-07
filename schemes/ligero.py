@@ -41,8 +41,8 @@ class ligero_parameters:
 
 		elif self.protocol_type == "optimised":
 			#variables and constrains scale down of a rmfe factor
-			self.variables = int(math.ceil(self.variables/float(self.rmfe)))
-			self.constraints = int(math.ceil(self.constraints/float(self.rmfe)))
+			self.variables = ceil(n/float(self.rmfe))
+			self.constraints = ceil(m/float(self.rmfe))
 
 		self.hash_size = 2*sp
 		self.security_parameter = sp 	 	# kappa
@@ -180,11 +180,11 @@ class ligero_parameters:
 
 		if self.snd_type == "proven":
 			# assuming an interactive soundness error of ((e + 1)/|F|)^sigma
-			sigma = lambda f : int(math.ceil( isp/(f - pp) ))
+			sigma = lambda f : ceil( isp/(f - pp) )
 		
 		elif self.snd_type == "heuristic":
 			# assuming an interactive soundness error of (e + 1)/|F|^sigma
-			sigma = lambda f : int(math.ceil( (isp + pp)/f ))		
+			sigma = lambda f : ceil( (isp + pp)/f )	
 		
 		# cost(f) returns the cost of executing LIGERO with the current
 		#  parameters excluding the mkt in BSC - it therefore include
@@ -200,7 +200,7 @@ class ligero_parameters:
 		#  the entire range. Remark that isp + pp + 1 is the value that makes
 		#  the number of repetitions 1 in the worst calse - further 
 		#  increasing f does not provide improvements
-		for f in range(self.domain_dim, int(math.ceil(isp + pp + 1))):
+		for f in range(self.domain_dim, ceil(isp + pp + 1)):
 
 			cost_tmp = cost(f)
 			if cost_tmp < cost_min:
@@ -293,7 +293,7 @@ class ligero_parameters:
 			# - - - - - end of debug - - - - - #
 
 			# masking terms for the modular lincheck
-			out += int(math.ceil((3 * self.interactive_soundness_error)/self.factor_l)) * f
+			out += ceil((3*self.interactive_soundness_error)/self.factor_l)*f
 
 		return out
 
@@ -312,12 +312,12 @@ class ligero_parameters:
 
 	def set_factor_m(self):
 		# m1 = ceil(n/l) so that l m1 >= n
-		self.factor_m1 = self.variables / float(self.factor_l)
-		self.factor_m1 = int(math.ceil(self.factor_m1))
+		self.factor_m1 = self.variables / self.factor_l
+		self.factor_m1 = ceil(self.factor_m1)
 
 		# m2 = ceil(m/l) so that l m2 >= n
-		self.factor_m2 = self.constraints / float(self.factor_l)
-		self.factor_m2 = int(math.ceil(self.factor_m2))
+		self.factor_m2 = self.constraints / self.factor_l
+		self.factor_m2 = ceil(self.factor_m2)
 
 	def complete(self):
 		# Using degree, domain_dim and factor_l set the other parameters
@@ -360,16 +360,18 @@ class ligero_parameters:
 			# if the field does allow for a small query soundness error
 
 			if self.snd_type == "proven":
-				# sigma is the minimum value that makes the interactive soundness error
-				#  smaller than 2^(-isp)
-				self.interactive_repetitions = \
-					(self.interactive_soundness_error)/(self.field_dim - np.log2(self.proximity_parameter + 1))
-				self.interactive_repetitions = int(math.ceil(self.interactive_repetitions))
+				# Sigma is the minimum value that makes the interactive
+				#  soundness error smaller than 2^(-isp)
+				self.interactive_repetitions = (self.interactive_soundness_error
+					/ (self.field_dim - np.log2(self.proximity_parameter + 1)))
+				self.interactive_repetitions = ceil(
+					self.interactive_repetitions)
 			
 			elif self.snd_type == "heuristic":
-				self.interactive_repetitions = \
-					(self.interactive_soundness_error + np.log2(self.proximity_parameter + 1))/float(self.field_dim)
-				self.interactive_repetitions = int(math.ceil(self.interactive_repetitions))
+				self.interactive_repetitions = (self.interactive_soundness_error
+					+ np.log2(self.proximity_parameter + 1))/self.field_dim
+				self.interactive_repetitions = ceil(
+					self.interactive_repetitions)
 
 		# debug - check that computation was correct
 		assert self.queries >= 1, "LIGERO, non positive queries"
@@ -414,9 +416,9 @@ class ligero_parameters:
 		#  dim_n > log2(k)
 
 		l_0 = self.find_l_0()
-		l_min = int(math.ceil(l_0 * self.LGR_MIN_L))
-		l_max = int(math.ceil(l_0 * self.LGR_MAX_L))
-		l_step = int(math.ceil((l_max - l_min)/float(LGR_MAX_SAMPLE)))
+		l_min = ceil(l_0 * self.LGR_MIN_L)
+		l_max = ceil(l_0 * self.LGR_MAX_L)
+		l_step = ceil((l_max - l_min)/LGR_MAX_SAMPLE)
 
 		final_cost = float('inf')			# resulting cost
 		final_tuple = None					# tuple associated with the best cost
@@ -438,7 +440,8 @@ class ligero_parameters:
 			# list of all the domain values to check. 
 			#  the base value is log2(2k + 1) to make 
 			#  n >= 2k + 1.
-			domain_values = [int(math.ceil(np.log2(2*self.degree + 1))) + i for i in range(LGR_MAX_DOMAIN_DIM)]
+			domain_values = [ceil(np.log2(2*self.degree + 1)) + i 
+				for i in range(LGR_MAX_DOMAIN_DIM)]
 			domain_values_tmp = []
 
 			while(domain_values):								# while there are still values to check
