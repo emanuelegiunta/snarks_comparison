@@ -10,19 +10,14 @@ from util.utilities import *
 class ligero_parameters:
 	def __init__(self, n, m, fd, sp, snd_type, protocol_type, rmfe = None):
 
-		self.protocol_type = protocol_type	# "standard" or "optimised"
-
-		self.variables = n 					# variables
-		self.constraints = m 				# constraints
+		self.protocol_type = protocol_type	# "standard"/"optimised"/"booligero"
 		self.field_dim = fd 				# log2(|F|)	
 
 		if self.protocol_type == "optimised":
 			# debug - the rmfe parameter has to be given
 			assert rmfe != None, "LIGERO, rmfe not given in optimised version"
 			# - - - - - end of debug - - - - - #
-
-			self.field_dim = rmfe[1]
-			self.rmfe = rmfe[0]				# Warning : this is ambiguous
+			self.rmfe, self.field_dim = rmfe
 
 		# checking if the size of the field is fixed. A not given
 		#  value implies that the field size can be adjusted to minimize
@@ -34,46 +29,51 @@ class ligero_parameters:
 			self.field_type = "fixed"
 			self.field_size = 2**self.field_dim
 
-		# setting the number of variables/constraints
+		# Protocol-dependent parameters
 		if self.protocol_type == "standard":
-			# for each variable we need the constraint x^2 = x
-			self.constraints += self.variables
+			
+			# For each variable we need the constraint x^2 = x
+			self.variables = n
+			self.constraints = m + n
+			
+			# Overall soundness is the sum of isp and qsp 
+			self.interactive_soundness_error = sp + 1
+			self.query_soundness_error = sp + 1
 
-		elif self.protocol_type == "optimised":
-			#variables and constrains scale down of a rmfe factor
-			self.variables = ceil(n/float(self.rmfe))
-			self.constraints = ceil(m/float(self.rmfe))
-
-		self.hash_size = 2*sp
-		self.security_parameter = sp 	 	# kappa
-
-		if self.protocol_type == "standard":
-			self.interactive_soundness_error = sp + 1		# one term
-		elif self.protocol_type == "optimised":
-			self.interactive_soundness_error = sp + 3		# four terms
-
-		self.query_soundness_error = sp + 1					# one term
-
-		self.domain_dim = None				# n
-		self.domain_size = None 			# 2^n 		**
-		self.degree = None					# k 		
-		self.proximity_parameter = None 	# e 		**
-		self.queries = None 				# t 		**
-		self.factor_l = None				# l 		
-		self.factor_m1 = None				# m1 		** number of codewords to fill w
-		self.factor_m2 = None				# m2 		** number of codewords to fill x, y, z, [t]
-		self.interactive_repetitions = None	# sigma 	**
-
-		self.snd_type = snd_type
-
-		# constants
-		if self.protocol_type == "standard":
+			# Range in which we look for optimal l
 			self.LGR_MIN_L = 1/10.0
 			self.LGR_MAX_L = 2/3.0
 
 		elif self.protocol_type == "optimised":
+
+			# Variables and constrains scale down of a rmfe factor
+			self.variables = ceil(n/self.rmfe)
+			self.constraints = ceil(m/self.rmfe)
+
+			# Overall soundness is the sum of 3 isp and one qsp
+			self.interactive_soundness_error = sp + 3
+			self.query_soundness_error = sp + 1
+
+			# Range in which we look for optimal l
 			self.LGR_MIN_L = 1/6.0
 			self.LGR_MAX_L = 2.5
+
+		# Other parameter fixed ahead
+		self.hash_size = 2*sp
+		self.security_parameter = sp 	 					# kappa
+		self.snd_type = snd_type
+
+		# Parameters that look for in order to find optimal costs
+		self.domain_dim = None				# n
+		self.domain_size = None 			# 2^n 	**
+		self.degree = None					# k 		
+		self.proximity_parameter = None 	# e 	**
+		self.queries = None 				# t 	**
+		self.factor_l = None				# l 		
+		self.factor_m1 = None				# m1 	** codewords to fill w
+		self.factor_m2 = None				# m2 	** cws to fill x, y, z, [t]
+		self.interactive_repetitions = None	# sigma **
+			
 
 	def check_empty_entries(self, var = None, exclude = False):
 		# check that all the variables in var are not set to None
@@ -122,8 +122,8 @@ class ligero_parameters:
 		return out
 
 	def find_queries(self):
-		# Returns the number of queries required to have a query soundness error smaller
-		#  that 2^{-qsp}
+		# Returns the number of queries required to have a query soundness
+		#  error smaller that 2^{-qsp}
 
 		# debug - check that all the required variables are non empty
 		assert self.check_empty_entries(var = ("domain_size", "proximity_parameter", "degree", \
@@ -234,12 +234,22 @@ class ligero_parameters:
 		#sigma = self.interactive_repetitions
 		#f = self.field_dim
 
-		# we set 3*(k + l - 1) as we only perform 3 lincheck in the R1CS
-		#  notice that we perform the same number of lincheck/rowchecks
-		out = f * sigma * (n + 3*(k + l - 1) + (2*k - 1))
+		if self.protocol_type == "standard":
+			# We should set 3*(k + l - 1) as we only perform 3 lincheck in the
+			#  R1CS, however ligero allows for linear test to be batched
+			#  without any soundness loss
+			#
+			# Costs ammount to
+			#
+			# LDT :	n 			: a codeword)
+			# Lin : k + l - 1 	: a k + l - 2 degree polynomial
+			# Row : 2k - 1 		: a 2k - 2 degree polynomial
+			out = f * sigma * (n + (k + l - 1) + (2*k - 1))
 
 		if self.protocol_type == "optimised":
-			# in the optimised version we send two vectors of len isp
+			# On top of the standard cost for performing LDT, Lin and Row we
+			#  also send 2 vector whose length is roughly the size of the s.p.
+			out = f * sigma * (n + (k + l - 1) + (2*k - 1))
 			out += 2 * f * self.interactive_soundness_error
 
 		if query_flag:
@@ -254,11 +264,12 @@ class ligero_parameters:
 			return 3
 
 	def find_alphabet_size(self, sigma = None, f = None):
-		# return the alphabet size of the (column compressed) oracles
-		#  used in BSC.
-		# 
-		# sigma and f are provided to make "speculative" calls. if not
-		#  provided we set them as the associated values in self
+		''' return the alphabet size of the (column compressed) oracles 
+		used in BSC.
+		
+		sigma and f are provided to make "speculative" calls. if not 
+		provided we set them as the associated values in self
+		'''
 
 		# debug - check for empty entries
 		assert self.check_empty_entries(var = ("protocol_type", "factor_m1", "factor_m2")) == None, \
@@ -278,10 +289,12 @@ class ligero_parameters:
 			# - - - - end of debug - - - - - #
 			f = self.field_dim
 
+		##
 		if self.protocol_type == "standard":
 			# oracles: w (m1), x, y, z (m2)
 			# masking terms: sigma for 1 LDT, 3 Lin, 1 Row
 			out = (self.factor_m1 + 3*self.factor_m2 + 5 * sigma) * f
+
 		elif self.protocol_type == "optimised":
 			# oracles: w (m1), x, y, z, t (m2)
 			# masking terms: sigma for 1 LDT, 3 Lin_h, 1 Row
