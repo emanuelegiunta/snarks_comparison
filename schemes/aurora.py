@@ -1,10 +1,12 @@
 from .constants import *
 from .fri import *
+from ._decorators import *
 
 # - - - - - - - - - - - - - - - - - #
 #	Aurora's parameters and test 	#
 # - - - - - - - - - - - - - - - - - #
 
+@protocol_types
 class aurora_parameters:
 	def __init__(self, n, m, fd, sp, snd_type, protocol_type, rmfe = None):
 		# n : number of input gates

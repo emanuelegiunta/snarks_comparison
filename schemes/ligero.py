@@ -1,5 +1,6 @@
 from .constants import *
 from .bcs import *
+from ._decorators import *
 
 from util.utilities import *
 
@@ -7,6 +8,7 @@ from util.utilities import *
 #	Ligero for binary circuits	#
 # - - - - - - - - - - - - - - - #
 
+@protocol_types("booligero")
 class ligero_parameters:
 	def __init__(self, n, m, fd, sp, snd_type, protocol_type, rmfe = None):
 
@@ -64,11 +66,13 @@ class ligero_parameters:
 			self.variables = n
 			self.constraints = m
 
-			def w0(self):
-				return int(math.floor(self.field_dim**(0.5)))
+			def w0(f):
+				return int(math.floor(f**(0.5)))
 
-			def w1(self):
-				return ceil(self.field_dim/self.w0())
+			def w1(f = None):
+				if f is None:
+					f = self.field_dim
+				return ceil(f/self.w0(f))
 
 			self.w0 = w0
 			self.w1 = w1
@@ -78,8 +82,8 @@ class ligero_parameters:
 			self.query_soundness_error = sp + 1
 
 			# Range in which we look for optimal l
-			self.LGR_MIN_L = 1/10.0
-			self.LGR_MAX_L = 2/3.0
+			self.LGR_MIN_L = 1/12.0
+			self.LGR_MAX_L = 1.8
 
 		# Other parameter fixed ahead
 		self.hash_size = 2*sp
@@ -281,7 +285,7 @@ class ligero_parameters:
 			#  also send 3 vectors to check the patterns of size
 			#  f * (w1 + 1) * sp
 			out = f*sigma*(n + (k + l - 1) + (2*k - 1))
-			out += 3*f*(self.w1() + 1)*self.interactive_soundness_error
+			out += 3*f*(self.w1(f) + 1)*self.interactive_soundness_error
 
 		if query_flag:
 			out += self.queries * self.find_alphabet_size(sigma = sigma, f = f)
@@ -351,14 +355,18 @@ class ligero_parameters:
 			# Oracles
 			#  Let n = var, m = cont, f = field dimension, sp = security param
 			#
-			#  w 			: n/f 
-			#  x, y, z 		: m/f
-			#  x^, y^, z^	: m/f * w1
+			#  w 			: n/f*l
+			#  x, y, z 		: m/f*l
+			#  x^, y^, z^	: (m/f*l)*w1
 			#  ax, ay, az 	: sp 
-			out = (self.variables//self.field_dim
-				+ 3*self.constraints//self.field_dim
-				+ 3*self.w1()*self.constraints//self.field_dim
-				+ 3*(self.w1() + 1)*f*self.interactive_soundness_error)
+			#  mask 		:
+			out = (self.variables//f
+				+ 3*self.constraints//f
+				+ 3*self.w1(f)*self.constraints//f
+				+ 3*(self.w1(f) + 1)*f*self.interactive_soundness_error)
+
+
+			out = ceil(out//self.factor_l)*f
 
 		return out
 

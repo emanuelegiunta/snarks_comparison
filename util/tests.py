@@ -35,13 +35,14 @@ def comparison_to_csv(scheme, filename, dim_min, dim_max, fd, sp, rmfe_iter, snd
 	# Make a comparison between plain scheme over F2 and our optimised version
 	#
 	#  scheme 		: "aurora" or "ligero" - choose which scheme to test
-	#  filename 	: name of the file in which final data is stored
-	#  dim_min 		: input size in the test start from 2**dim_min
-	#  dim_max 		: input size in the test end with 2**dim_max (inclusive)
+	#  filename 	: Name of the file in which final data is stored
+	#  dim_min 		: Input size in the test start from 2**dim_min
+	#  dim_max 		: Input size in the test end with 2**dim_max (inclusive)
 	#  fd 			: Aurora's field dimension
-	#  rmfe_iter 	: A list of tuples (k,m) of rmfe parameters used in the optimised version
-	#  sp 			: security parameter
-	#  snd_type 	: soundness type
+	#  rmfe_iter 	: A list of tuples (k,m) of rmfe parameters used in the
+	#					optimised version
+	#  sp 			: Security parameter
+	#  snd_type 	: Soundness type
 
 	filename = filename + ".csv"
 	_check_file(filename)
@@ -53,32 +54,50 @@ def comparison_to_csv(scheme, filename, dim_min, dim_max, fd, sp, rmfe_iter, snd
 	vec_constraints_dim = [n for n in range(dim_min, dim_max + 1)]
 	out.append(["constraints"] + [2**n for n in vec_constraints_dim])
 
-	# choose the parameter class
+	# Choose the parameter class
 	parameters_class = _parameters_class(scheme)
 
 	try:
-		vec_results = []
-		for n in vec_constraints_dim:
-			# execute the standard test
-			print_message("Running standard {:s} for n = {:2d}".format(scheme, n))
-			parameters = parameters_class(2**n, 2**n, fd, sp, snd_type, "standard")
-			vec_results.append(parameters.optimal_cost())
+		# Loop on all the non optimised version of the given protocol
+		for protocol_type in parameters_class.protocol_types:
 
-			# if VERY_VERBOSE_FLAG
-			print_verbose_cost("\nStandard {:s} with {:s} soundness, n = {:2d}".format(scheme, snd_type, n), \
-				vec_results[-1])
-			print_separator(very_verbose = True)
+			vec_results = []
+			for n in vec_constraints_dim:
+				
+				# Execute the standard test
+				print_message("Running {:s}, version = {:s}, n = {:2d}".format(
+					scheme, 			# Name of the executed scheme
+					protocol_type,		# Name of the protocol version
+					n))					#	
+				parameters = parameters_class(
+					2**n, 			# number of variables
+					2**n, 			# number of constraints
+					fd, 			# field dimension
+					sp, 			# security paramenter
+					snd_type, 		# soundness type [proven, ...]
+					protocol_type)	# protocol type [standard, ...]
+				vec_results.append(parameters.optimal_cost())
 
-		# store the results
-		print_verbose_message("End of standard {:s} tests".format(scheme))
-		print_separator(verbose = True)
-		out.append(["standard"] + vec_results)
+				# if VERY_VERBOSE_FLAG
+				print_verbose_cost(
+					"\nProtocol {:s} with {:s} soundness, "
+					"version = {:s}, n = {:2d}".format(
+					scheme, snd_type, protocol_type, n), 
+					vec_results[-1])
+				print_separator(very_verbose = True)
+
+			# Store the results
+			print_verbose_message("End of {:s} tests, version = {:s}".format(
+				scheme, protocol_type))
+			print_separator(verbose = True)
+			# Put the type of the protocol on the header
+			out.append([protocol_type] + vec_results)
 
 		for rmfe in rmfe_iter:
 			vec_results = []
 			for n in vec_constraints_dim:
 				# execute the optimised test
-				print_message("Running optimised {:s} for n = {:2d}, rmfe = {}".format(scheme, n, rmfe))
+				print_message("Running optimised {:s}, rmfe = {}, n = {:2d}".format(scheme, rmfe, n))
 				parameters = parameters_class(2**n, 2**n, fd, sp, snd_type, "optimised", rmfe = rmfe)
 				vec_results.append(parameters.optimal_cost())
 
@@ -110,28 +129,49 @@ def general_test(scheme, dim_min, dim_max, fd, sp, rmfe_iter, snd_type):
 	
 	parameters_class = _parameters_class(scheme)
 
-	for dim in range(dim_min, dim_max + 1):
-		print_message("Testing standard {:s}, n = {:2d}".format(scheme, dim))
+	# Loop on all the non optimised version of the given protocol
+	for protocol_type in parameters_class.protocol_types:
 
-		# initialize the parameters of the selected scheme
-		parameters = parameters_class(2**dim, 2**dim, fd, sp, snd_type, "standard")
+		for dim in range(dim_min, dim_max + 1):
+			# Execute the standard test
+			print_message("Testing {:s}, version = {:s}, n = {:2d}".format(
+				scheme, 			# Name of the executed scheme
+				protocol_type,		# Name of the protocol version
+				dim))
 
-		# find optimal parameters and get the nimum cost associated
-		cost = parameters.optimal_cost()
+			# Initialize the parameters of the selected scheme
+			parameters = parameters_class(
+				2**dim, 		# Number of Variables
+				2**dim, 		# Number of Constraints
+				fd, 			# Dimension of the field
+				sp, 			# Security Parameter
+				snd_type,		# Type of soundness [proven, ...]
+				protocol_type)	# Protocol version [standard, ...]
 
-		# print the optimal parameters and the cost found
-		print_message(str(parameters))
-		print_cost("Final cost", cost)
-		print_separator(verbose = True)
+			# find optimal parameters and get the nimum cost associated
+			cost = parameters.optimal_cost()
+
+			# print the optimal parameters and the cost found
+			print_message(str(parameters))
+			print_cost("Final cost", cost)
+			print_separator(verbose = True)
 
 	for rmfe in rmfe_iter:
 		for dim in range(dim_min, dim_max + 1):
-			print_message("Testing optimised {:s}, n = {:2d}, rmfe = {}".format(scheme, dim, rmfe))
+			print_message("Testing optimised {:s}, rmfe = {}, n = {:2d}".format(
+				scheme, rmfe, dim))
 
 			# initialize the parameters of the selected scheme
-			parameters = parameters_class(2**dim, 2**dim, fd, sp, snd_type, "optimised", rmfe = rmfe)
+			parameters = parameters_class(
+				2**dim, 		#
+				2**dim, 		#
+				fd, 			#
+				sp, 			#
+				snd_type, 		#
+				"optimised", 	#
+				rmfe = rmfe)	#
 
-			# find optimal parameters and get the nimum cost associated
+			# find optimal parameters and get the minimum cost associated
 			cost = parameters.optimal_cost()
 
 			# print the optimal parameters and the cost found

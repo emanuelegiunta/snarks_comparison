@@ -1,5 +1,6 @@
 from .constants import *
 from .fri import *
+from ._decorators import *
 
 from util import *
 
@@ -7,6 +8,7 @@ from util import *
 #	Ligero++'s parameters and test	#
 # - - - - - - - - - - - - - - - - - #
 
+@protocol_types
 class ligeropp_parameters:
 	def __init__(self, n, m, fd, sp, snd_type, protocol_type, rmfe = None):
 		# n : number of input gates
