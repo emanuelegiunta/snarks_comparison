@@ -190,18 +190,35 @@ def str_help():
 	'''
 
 	out  = ""
-	out += str_bold("Parameter optimiser for Aurora [EC:BCRSVW19] and Ligero [CCS:AHIV17]\n\n")
+	out += str_bold("Parameter optimiser for Aurora [EC:BCRSVW19], "
+		"Ligero [CCS:AHIV17], Ligero++ [CCS:BFHVXZ20] with boolean R1CS\n\n")
 	out += str_synopsis()
 
 	out += str_bold("COMMAND LINE DESCRIPTION:\n")
 	out += "\n"
 
 	out += "  {:s}:\n".format(str_bold("-l, --ligero"))
-	out += " Runs a comparison between standard and optimised ligero\n"
+	out += " Runs a comparison between standard and optimised Ligero\n"
 	out += "\n"
 
 	out += "  {:s}:\n".format(str_bold("-a, --aurora"))
-	out += " Runs a comparison between standard and optimised aurora\n"
+	out += " Runs a comparison between standard and optimised Aurora\n"
+	out += "\n"
+
+	out += "  {:s}:\n".format(str_bold("-lpp, --ligeropp"))
+	out += " Runs a comparison between standard and optimised Ligero++\n"
+	out += "\n"
+
+	out += "  {:s}:\n".format(str_bold("-tl, --test_ligero"))
+	out += " Runs a test for Ligero, printing used parameters on screen\n"
+	out += "\n"
+
+	out += "  {:s}:\n".format(str_bold("-ta, --test_aurora"))
+	out += " Runs a test for Ligero++, printing used parameters on screen\n"
+	out += "\n"
+
+	out += "  {:s}:\n".format(str_bold("-tlpp, --test_ligeropp"))
+	out += " Runs a test for ligero, printing used parameters on screen\n"
 	out += "\n"
 
 	out += "  {:s} {:s}:\n".format(str_bold("-sp, --security_parameter"), str_underline("(1 argument)"))
@@ -221,17 +238,18 @@ def str_help():
 	out += "\n"
 
 	out += "  {:s}:\n".format(str_bold("-p, --proven"))
-	out += " Uses proven soundness bounds\n"
+	out += " Uses proven soundness bounds, currently the default option\n"
 	out += "\n"
 
 	out += "  {:s} {:s}:\n".format(str_bold("-r, --rmfe"), str_underline("(1 argument)"))
-	out += " Set the reverse multiplication-friendly embedding (k,m) used by the optimised version. "
-	out += "Input should countain at least one ore more couples of integers "
-	out += "and has to be placed in quotes of double quotes and separated by commas, spaces or semicolons "
-	out += "(or a combination of them). Brakets are ignored. Below examples of valid input\n"
-	out += "\t\"48 192\" parsed as [(48, 192)]\n"
-	out += "\t\'[3,5];[2,3]\' parsed as [(3,5), (2,3)]\n"
-	out += "\t\"[(48, 160) (42; 135), [2 3]]\" parsed as [(48, 160), (42, 135), (2, 3)]\n"
+	out += (" Set the reverse multiplication-friendly embedding (k,m) used by "
+		"the optimised version. Input should countain at least one ore more "
+		"couples of integers and has to be placed in quotes of double quotes "
+		"and separated by commas, spaces or semicolons (or a combination of "
+		"them). Brakets are ignored. Below examples of valid input\n"
+		"\t\"48 192\" parsed as [(48, 192)]\n"
+		"\t\'[3,5];[2,3]\' parsed as [(3,5), (2,3)]\n"
+		"\t\"[(42; 135), [2 3]]\" parsed as [(42, 135), (2, 3)]\n")
 	out += "\n"
 
 	out += "  {:s} {:s}:\n".format(str_bold("-fd, --field_dimension"), str_underline("(1 argument)"))
