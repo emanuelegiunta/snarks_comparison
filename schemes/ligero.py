@@ -148,7 +148,7 @@ class ligero_parameters:
 		out += "- - - - - - - - - - - - - - -"
 		return out
 
-	def find_queries(self):
+	def compute_queries(self):
 		'''Returns the number of queries required to have a query soundness
 		error smaller that 2^{-qsp}
 		'''
@@ -288,7 +288,8 @@ class ligero_parameters:
 			out += 3*f*(self.w1(f) + 1)*self.interactive_soundness_error
 
 		if query_flag:
-			out += self.queries * self.find_alphabet_size(sigma = sigma, f = f)
+			out += self.queries * self.find_alphabet_size(
+				sigma = sigma, f = f, sum_flag = True)
 
 		return out
 
@@ -302,12 +303,15 @@ class ligero_parameters:
 		elif self.protocol_type == "booligero":
 			return 3
 
-	def find_alphabet_size(self, sigma = None, f = None):
+	def find_alphabet_size(self, sigma = None, f = None, sum_flag = False):
 		''' return the alphabet size of the (column compressed) oracles 
 		used in BSC.
 		
 		sigma and f are provided to make "speculative" calls. if not 
 		provided we set them as the associated values in self
+
+		if sum_flag is True returns the sum of the sizes of all the oracles sent
+		(if the prover sends more than one oracle)
 		'''
 
 		# TODO - remove in the next commit
@@ -354,21 +358,56 @@ class ligero_parameters:
 		elif self.protocol_type == "booligero":
 			# Oracles
 			#  Let n = var, m = cont, f = field dimension, sp = security param
-			#
-			#  w 			: n/f*l
-			#  x, y, z 		: m/f*l
-			#  x^, y^, z^	: (m/f*l)*w1
-			#  ax, ay, az 	: sp 
-			#  mask 		:
-			out = (self.variables//f
+			#	
+			# Round 1
+			#  w 			: n/f*l 			f.e.
+			#  x, y, z 		: m/f*l 			f.e.
+			#  x^, y^, z^	: (m/f*l)*w1 		f.e.
+			#  mask 		: 3 sigma  			f.e.
+			# 
+			# Round 2 							
+			#  ax, ay, az 	: 3*(w1 + 1)*sp 	f.e.
+
+			# Number of field elements on a single caracter
+			round1 = ceil((self.variables//f
 				+ 3*self.constraints//f
-				+ 3*self.w1(f)*self.constraints//f
-				+ 3*(self.w1(f) + 1)*f*self.interactive_soundness_error)
+				+ 3*self.w1(f)*self.constraints//f) / self.factor_l)
+			# Add the masking terms
+			round1 += 3*sigma
+			# Convert number of field elements to number of bits
+			round1 *= f
 
+			# Number of bits on a signle caracter
+			round2 = 3*(self.w1(f) + 1)*f*self.interactive_soundness_error
 
-			out = ceil(out//self.factor_l)*f
+			out = [round1, round2]
+
+			# Messy...
+			if sum_flag:
+				return sum(out)
+
 
 		return out
+
+	def find_oracle_length(self):
+		if self.protocol_type == "standard":
+			return self.domain_size
+
+		elif self.protocol_type == "booligero":
+			return [self.domain_size, self.domain_size]
+
+		elif self.protocol_type == "optimised":
+			return self.domain_size
+
+	def find_queries(self):
+		if self.protocol_type == "standard":
+			return self.queries
+
+		elif self.protocol_type == "booligero":
+			return [self.queries, self.queries]
+
+		elif self.protocol_type == "optimised":
+			return self.queries
 
 	def find_l_0(self):
 		# Returns the base point l_0 s.t. the protocol looks for
@@ -414,7 +453,7 @@ class ligero_parameters:
 
 		# t is the minimum value that makes the query soundness error smaller
 		#  than 2^(-qsp)
-		self.queries = self.find_queries()
+		self.queries = self.compute_queries()
 		
 		if self.queries != float('inf') and self.field_type == "variable":
 			# if the parameters allow a small query soundness and the field
@@ -462,8 +501,8 @@ class ligero_parameters:
 
 		rounds = self.find_rounds()
 		alphabet_size = self.find_alphabet_size()
-		oracle_length = self.domain_size
-		queries = self.queries
+		oracle_length = self.find_oracle_length()
+		queries = self.find_queries()
 
 		bsc_cost = com_BCS(self.hash_size, alphabet_size, rounds, oracle_length, queries, estimate)
 
