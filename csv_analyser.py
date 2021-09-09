@@ -39,7 +39,7 @@ def test(filename):
 			row_name = "column {:d}".format(i)
 
 		rate_row.sort()
-		r_med = rate_row[len(rate_row)/2]
+		r_med = rate_row[len(rate_row)//2]
 		out += "  Ratio {:s}\t: min = {:.2f}, median = {:.2f}, max = {:.2f}, last = {:.2f}\n". \
 			format(row_name, r_min, r_med, r_max, r_last)
 
