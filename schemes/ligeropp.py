@@ -93,28 +93,60 @@ class ligeropp_parameters:
 
 		Returns the sigma max degree as a function of the number of queries
 		'''
+
+		# by definition \sigma is the maximum degree of the oracles sent and of 
+		#  the rational contraint checked [i.e. it is the final rate tested by
+		#  the LDT used, FRI for example]
+		#
+		# in our case all codewords have degree d'+q and, while performing the
+		#  sumcheck, we perform a rational constraint of degree d'
+		#
 		def sigma(q):
 			if self.protocol_type == "standard":
+
+
 				if self.mode == "zk-ligero":
-					return max(self.factor_m1, 2*self.factor_m2)
+					# each higher-oracle encodes a column of Ligero's U-matrix
+					#  that in this case consist of
+					#
+					#  w 		: m1 
+					#  x, y, z 	: 3*m2
+					#  masks 	: 3
+					return self.factor_m1 + 3*self.factor_m2 + 3
 
 				elif self.mode == "zk-IPA":
-					return max(
-						self.factor_m1 + q,
-						2*(self.factor_m2 + q))
+					# If the IPA is zk and ligero is not, the length of the
+					#  column is
+					#
+					#  w 		: m1
+					#  x, y, z 	: 3*m2
+					#  mask 	: 0
+					return self.factor_m1 + 3*self.factor_m2 + q
 
 			elif self.protocol_type == "optimised":
 				if self.mode == "zk-ligero":
-					return max(
-						self.factor_m1,
-						2*self.factor_m2,
-						3*self.security_parameter)
+					# In the optimised version, we have an extra element t and
+					#  extra codewords for y1, y2, y3 [in the paper g encodes
+					#  this vectors]
+					#
+					#  w 			: m1
+					#  x, y, z, t 	: 4*m2
+					#  mask 		: 3
+					#  RMFE mask 	: 3*(sp/l)
+					return (self.factor_m1 + 4*self.factor_m2 + 3
+						+ 3*ceil(self.security_parameter/self.factor_l))
 
 				elif self.mode == "zk-IPA":
-					return max(
-						self.factor_m1 + q,
-						2*self.factor_m2 + 2*q,
-						3*self.security_parameter)
+					# In the zk-IPA's mode, we are not required to add masking
+					#  terms to the columns. However we do increase the degree
+					#  of each codeword
+					#
+					#  w 			: m1
+					#  x, y, z, t 	: 4*m2
+					#  mask 		: 0
+					#  RMFE mask 	: 3*(sp/l)
+					return (self.factor_m1 + 4*self.factor_m2 + 3
+						+ 3*ceil(self.security_parameter/self.factor_l) + q)
 
 		return sigma
 
@@ -124,28 +156,11 @@ class ligeropp_parameters:
 		Returns the rho max degree as a function of the number of queries
 		'''
 		
-		def rho(q):
-			if self.protocol_type == "standard":
-				if self.mode == "zk-ligero":
-					return 2*max(self.factor_m1, self.factor_m2)
+		# We remark that in the case of Ligero++, oracles in rational
+		#  constraints are only used to perform a sumcheck - therefore
+		#  rho and sigma are the same
 
-				elif self.mode == "zk-IPA":
-					return max(
-						2*self.factor_m1 + 2*q,
-						2*self.factor_m2 + 2*q)
-
-			elif self.protocol_type == "optimised":
-				if self.mode == "zk-ligero":
-					return max(
-						2*self.factor_m1,
-						2*self.factor_m2,
-						3*self.security_parameter)
-
-				elif self.mode == "zk-IPA":
-					return max(
-						2*self.factor_m1 + 2*q,
-						2*self.factor_m2 + 2*q,
-						3*self.security_parameter)
+		rho = self._deg_sigma()
 
 		return rho
 
@@ -176,12 +191,10 @@ class ligeropp_parameters:
 				return [5*self.queries + 1, 1]
 
 	def extra_communication(self):
-		# Ammount of data sent by the prover before the LDT and NOT
-		#  in the form of an oracle. In theory this consist of one 
-		#  element in the sumcheck protocol, but this element can
-		#  be avoided is the prover already knows the sum AND the
-		#  masking term is chosen to have zero sum. In the optimised version
-		#  this consist of the vectors in the Modular Lincheck
+		# Ammount of data sent by the prover before the LDT - excluding oracles
+		#  Used optimisation:
+		#
+		# 	1. Linchecks, as in plain Ligero, can be batched in one execution
 
 		n = self.domain_size
 		k = self.degree
@@ -190,10 +203,10 @@ class ligeropp_parameters:
 		sp = self.interactive_soundness_error
 
 		if self.protocol_type == "standard":
-			return fd*(n + 3*(k + l - 1) + (2*k - 1))
+			return fd*(n + (k + l - 1) + (2*k - 1))
 
 		elif self.protocol_type == "optimised":
-			return fd*(n + 3*(k + l - 1) + (2*k - 1)) + 2*fd*sp
+			return fd*(n + (k + l - 1) + (2*k - 1)) + 2*fd*sp
 			#return 2 * self.field_dim * (self.security_parameter + 3)
 
 	def _query_soundness_error(self, n, l, t):
