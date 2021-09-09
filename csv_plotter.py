@@ -6,6 +6,9 @@ class CompatibilityError(Exception):
 	pass
 
 def csv_parse_line(string):
+	'''Return the comma-separated values from a .csv line stored in a vector
+	'''
+
 	# remove the trailing \n
 	string = string.replace("\n", "")
 	
@@ -16,6 +19,10 @@ def csv_parse_line(string):
 	return vec
 
 def vec_transpose(vec):
+	''' Given a matrix (list of lists with the same length), return its
+	transposition
+	'''
+
 	assert len( {len(col) for col in vec} ) <= 1, "Transponing vector with different length lines"
 	
 	if vec == []:
@@ -25,6 +32,12 @@ def vec_transpose(vec):
 		return [[line[i] for line in vec] for i in range(n)]
 
 def csv_parse(file_name):
+	''' Read data from file_name (which needs to be a .csv file name) and return
+	it packed in a matrix
+
+	observe that columns in the file are sent to rows in the matrix
+	'''
+
 	f = open(file_name, "r")
 	vec = []
 
