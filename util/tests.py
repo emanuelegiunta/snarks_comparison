@@ -109,7 +109,7 @@ def comparison_to_csv(scheme, filename, dim_min, dim_max, fd, sp, rmfe_iter, snd
 			# store the results
 			print_verbose_message("End of optimised {:s} tests, rmfe = {}".format(scheme, rmfe))
 			print_separator(verbose = True)
-			out.append(["optimised rmfe {:3d} {:3d}".format(*rmfe)] + vec_results)
+			out.append(["optimised_rmfe_{:d}_{:d}".format(*rmfe)] + vec_results)
 
 	finally:
 		# write to csv file
